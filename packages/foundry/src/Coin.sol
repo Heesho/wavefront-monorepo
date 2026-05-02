@@ -116,7 +116,6 @@ contract Coin is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, Ownable {
     }
 
     function setTeam(address newTeam) external onlyOwner {
-        if (newTeam == address(0)) revert Coin__ZeroTo();
         team = newTeam;
         emit Coin__TeamSet(newTeam);
     }
@@ -258,9 +257,11 @@ contract Coin is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, Ownable {
             remainingRaw -= feeRaw;
         }
 
-        IERC20(quote).safeTransfer(team, feeRaw);
-        emit Coin__TeamFee(team, feeRaw, 0);
-        remainingRaw -= feeRaw;
+        if (team != address(0)) {
+            IERC20(quote).safeTransfer(team, feeRaw);
+            emit Coin__TeamFee(team, feeRaw, 0);
+            remainingRaw -= feeRaw;
+        }
 
         address treasury = ICore(core).treasury();
         if (treasury != address(0)) {
@@ -282,9 +283,11 @@ contract Coin is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, Ownable {
             remainingAmt -= feeAmt;
         }
 
-        _mint(team, feeAmt);
-        emit Coin__TeamFee(team, 0, feeAmt);
-        remainingAmt -= feeAmt;
+        if (team != address(0)) {
+            _mint(team, feeAmt);
+            emit Coin__TeamFee(team, 0, feeAmt);
+            remainingAmt -= feeAmt;
+        }
 
         address treasury = ICore(core).treasury();
         if (treasury != address(0)) {

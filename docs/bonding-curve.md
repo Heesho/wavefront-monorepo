@@ -127,11 +127,13 @@ The 1% trade fee is split four ways:
 | Recipient | Fraction | Conditional? |
 |---|---|---|
 | `provider` (affiliate) | 20% of fee | Only if `provider != address(0)` |
-| `team` | 20% of fee | Always |
+| `team` | 20% of fee | Only if `team != address(0)` |
 | `treasury` | 20% of fee | Only if `Core.treasury != address(0)` |
-| heal/burn | 40% (or more, if conditionals skip) | Always (the leftover) |
+| heal/burn | 40% (or more, if any conditional skips) | Always (the leftover) |
 
 (20% per recipient comes from `FEE_AMOUNT / DIVISOR = 2_000 / 10_000`.)
+
+All three recipient branches are symmetric: each is conditional on its address being non-zero. If any recipient is unset, that 20% slice is **not** lost — it stays in `remainingRaw` and rolls into the heal (on buy) or burn (on sell). So the unconditional invariant is "100% of fees are accounted for"; how they split between recipients and the heal pool is configurable.
 
 Concretely, here's the buy-side fee path:
 
@@ -145,8 +147,10 @@ function _processBuyFees(uint256 quoteRaw, address provider) internal returns (u
         remaining -= feeAmount;
     }
 
-    IERC20(quote).safeTransfer(team, feeAmount);
-    remaining -= feeAmount;
+    if (team != address(0)) {
+        IERC20(quote).safeTransfer(team, feeAmount);
+        remaining -= feeAmount;
+    }
 
     address treasury = ICore(core).treasury();
     if (treasury != address(0)) {
@@ -158,7 +162,7 @@ function _processBuyFees(uint256 quoteRaw, address provider) internal returns (u
 }
 ```
 
-Whatever's left over after the recipients are paid (`remaining`) gets healed back into the curve. If both `provider` and `treasury` are zero, the entire fee pool except the team's cut is healed.
+Whatever's left over after the recipients are paid (`remaining`) gets healed back into the curve. If all three of `provider`, `team`, and `treasury` are zero, the entire fee pool gets healed — every cent of the trade fee turns into a floor-price ratchet for holders.
 
 The sell-side fee logic mirrors this exactly, with `_mint` instead of `safeTransfer`:
 
@@ -373,7 +377,7 @@ The 1-coin retention is a deliberate floor: it ensures Core holds at least one c
 A wavefront coin has three address-based roles relevant to the fee logic:
 
 - **Owner** — the EOA or contract that deployed the coin via the launcher. Inherits OpenZeppelin's `Ownable`. Can call `setTeam(address)`. Initially set to the creator (the address passed to `Core.create()`, which Router forwards as `msg.sender`).
-- **Team** — the recipient of team fees. Set in the constructor (`team = _owner`), updatable by the owner via `setTeam(newTeam)`. Cannot be set to `address(0)` (would brick the buy path).
+- **Team** — the recipient of team fees. Set in the constructor (`team = _owner`), updatable by the owner via `setTeam(newTeam)`. Can be set to `address(0)`, which causes the team's 20% slice to be healed instead of transferred.
 - **Treasury** — the protocol-wide fee recipient. Lives on `Core`, not on `Coin`. Can be unset (`address(0)` skips the treasury branch and adds that 20% to the heal/burn pool). The owner of `Core` controls it via `setTreasury(...)`.
 
 The `provider` is not really a role on the coin — it's per-call, a parameter on `buy` and `sell`. Router has its own `account_Affiliate` mapping that persists the first non-zero affiliate per user; subsequent calls forward that persisted address as the provider, so traders only need to specify their referrer once.
@@ -409,7 +413,7 @@ The principle is: every rounding choice resolves toward the curve's reserves rat
 
 All public state-changing entrypoints — `buy`, `sell`, `borrow`, `repay`, `heal`, `burn` — are guarded by OpenZeppelin's `nonReentrant`. The `Coin` contract is also `ReentrancyGuard`-aware. The most subtle path is `heal()`, where `safeTransferFrom` runs before `_healQuoteReserves` — but the only state mutation that follows is on the coin's own reserves, and the call is reentrant-protected, so a malicious quote token cannot drain via reentrancy.
 
-The fee distribution uses `safeTransfer` to external addresses (provider, team, treasury). If any of those addresses is a contract that reverts on receipt of ERC20s, the entire trade reverts. This is intentional: it makes the cost of bricking the curve clear. The `setTeam` setter rejects `address(0)` precisely to prevent the owner from accidentally pointing fees at the zero address.
+The fee distribution uses `safeTransfer` to external addresses (provider, team, treasury). If a recipient is a non-zero contract that reverts on receipt of ERC20s, the entire trade reverts — that's the cost of pointing fees at a misbehaving contract, and it's the recipient's responsibility to be receivable. To intentionally direct a recipient's slice to the heal/burn pool instead, set the address to `address(0)`: the corresponding branch is then skipped and the share rolls into the leftover that gets healed (on buy) or burned (on sell).
 
 ## 14. Glossary
 

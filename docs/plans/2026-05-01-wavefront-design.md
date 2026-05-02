@@ -105,12 +105,12 @@ fee = quoteIn * FEE / DIVISOR                            // 1% of trade
 feeAmount = fee * FEE_AMOUNT / DIVISOR                   // 20% per recipient
 
 if (provider != 0) → feeAmount to provider               (Coin__ProviderFee)
-                   → feeAmount to team                   (Coin__TeamFee)
+if (team != 0)     → feeAmount to team                   (Coin__TeamFee)
 if (treasury != 0) → feeAmount to treasury (read from Core)  (Coin__TreasuryFee)
 leftover            → heal back into reserves             (Coin__HealReserves)
 ```
 
-Sell mirrors the structure with `_mint` instead of `safeTransfer`, and the leftover gets burned via `_burnTokenReserves` (`Coin__BurnReserves`). The original "content" branch is removed; the team branch replaces it. Treasury still reads dynamically from `Core`.
+All three recipient branches are conditional on a non-zero address; if any is zero, that 20% slice rolls into the leftover and gets healed (on buy) or burned (on sell). Sell mirrors the structure with `_mint` instead of `safeTransfer`. The original "content" branch is removed; the team branch replaces it. Treasury still reads dynamically from `Core`.
 
 **Events kept (renamed `Token__` → `Coin__`):** `Swap`, `SyncReserves`, `HealReserves`, `BurnReserves`, `ProviderFee`, `TeamFee` (replaces `ContentFee`), `TreasuryFee`, `Heal`, `Burn`, `Borrow`, `Repay`, `TeamSet` (new).
 

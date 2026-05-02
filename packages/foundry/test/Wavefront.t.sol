@@ -183,11 +183,22 @@ contract WavefrontTest is Test {
         assertEq(coin.balanceOf(alice), balance - balance / 2);
     }
 
-    function test_setTeam_revertsOnZeroAddress() public {
+    function test_setTeam_zeroAddress_routesToHeal() public {
         Coin coin = _createCoin(creator, 1000 * ONE_USDC);
         vm.prank(creator);
-        vm.expectRevert(Coin.Coin__ZeroTo.selector);
         coin.setTeam(address(0));
+        assertEq(coin.team(), address(0));
+
+        // With team zero, the team-fee branch is skipped on buy and the
+        // share goes to heal instead. Virt reserves should still grow.
+        uint256 virtBefore = coin.reserveVirtQuoteWad();
+
+        vm.startPrank(alice);
+        usdc.approve(address(coin), 1000 * ONE_USDC);
+        coin.buy(1000 * ONE_USDC, 0, 0, alice, address(0));
+        vm.stopPrank();
+
+        assertGt(coin.reserveVirtQuoteWad(), virtBefore);
     }
 
     function test_setTeam_revertsForNonOwner() public {

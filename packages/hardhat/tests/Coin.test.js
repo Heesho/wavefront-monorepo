@@ -314,13 +314,21 @@ describe("Coin", function () {
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
-    it("setTeam reverts on address(0)", async function () {
-      const { usdc: u, router, creator } = await deployWavefront();
+    it("setTeam(0) is allowed; team's fee share routes to heal on buy", async function () {
+      const { usdc: u, router, creator, alice } = await deployWavefront();
       const coin = await createCoin(router, u, creator);
 
-      await expect(
-        coin.connect(creator).setTeam(ZERO)
-      ).to.be.revertedWith("Coin__ZeroTo");
+      await coin.connect(creator).setTeam(ZERO);
+      expect(await coin.team()).to.eq(ZERO);
+
+      const virtBefore = await coin.reserveVirtQuoteWad();
+      const buyAmt = usdc(1000);
+      await u.connect(alice).approve(coin.address, buyAmt);
+      await coin.connect(alice).buy(buyAmt, 0, 0, alice.address, ZERO);
+
+      // No team transfer should have happened (team is zero)
+      // The team's share is healed instead, so virt reserves grow more than they would with team set
+      expect(await coin.reserveVirtQuoteWad()).to.be.gt(virtBefore);
     });
 
     it("setTeam updates team and emits event", async function () {
