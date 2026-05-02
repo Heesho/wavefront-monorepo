@@ -1,0 +1,25 @@
+node_modules/
+.env
+.env.*
+!.env.example
+
+# hardhat
+packages/hardhat/cache/
+packages/hardhat/artifacts/
+packages/hardhat/coverage/
+packages/hardhat/coverage.json
+
+# foundry
+packages/foundry/out/
+packages/foundry/cache/
+packages/foundry/broadcast/
+
+# subgraph
+packages/subgraph/build/
+packages/subgraph/generated/
+packages/subgraph/subgraph.yaml
+
+# misc
+.DS_Store
+.vscode/
+.idea/
