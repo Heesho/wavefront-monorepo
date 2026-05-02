@@ -116,6 +116,7 @@ contract Coin is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, Ownable {
     }
 
     function setTeam(address newTeam) external onlyOwner {
+        if (newTeam == address(0)) revert Coin__ZeroTo();
         team = newTeam;
         emit Coin__TeamSet(newTeam);
     }
