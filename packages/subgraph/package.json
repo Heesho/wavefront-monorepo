@@ -1,0 +1,25 @@
+{
+  "name": "@wavefront/subgraph",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "prepare:localhost": "node prepare.js localhost",
+    "prepare:base-sepolia": "node prepare.js base-sepolia",
+    "prepare:base": "node prepare.js base",
+    "test": "graph test",
+    "deploy:base": "graph deploy --node https://api.studio.thegraph.com/deploy/ wavefront",
+    "create-local": "graph create --node http://localhost:8020/ wavefront",
+    "remove-local": "graph remove --node http://localhost:8020/ wavefront",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 wavefront"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "0.97.1",
+    "@graphprotocol/graph-ts": "0.37.0"
+  },
+  "devDependencies": {
+    "matchstick-as": "0.6.0"
+  }
+}

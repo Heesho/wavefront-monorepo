@@ -18,6 +18,8 @@ packages/foundry/broadcast/
 packages/subgraph/build/
 packages/subgraph/generated/
 packages/subgraph/subgraph.yaml
+packages/subgraph/tests/.bin/
+packages/subgraph/tests/.latest.json
 
 # misc
 .DS_Store

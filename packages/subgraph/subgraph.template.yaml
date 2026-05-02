@@ -1,0 +1,81 @@
+specVersion: 1.3.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: Core
+    network: {{network}}
+    source:
+      address: "{{Core.address}}"
+      abi: Core
+      startBlock: {{Core.startBlock}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Directory
+        - Coin
+        - CoinPosition
+        - User
+      abis:
+        - name: Core
+          file: ./abis/Core.json
+      eventHandlers:
+        - event: Core__CoinCreated(string,string,uint256,address,indexed address)
+          handler: handleCore__CoinCreated
+        - event: Core__TreasurySet(address)
+          handler: handleCore__TreasurySet
+      file: ./src/core.ts
+templates:
+  - kind: ethereum
+    name: Coin
+    network: {{network}}
+    source:
+      abi: Coin
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Directory
+        - Coin
+        - CoinPosition
+        - Swap
+        - CoinDayData
+        - CoinHourData
+        - CoinMinuteData
+        - User
+      abis:
+        - name: Coin
+          file: ./abis/Coin.json
+      eventHandlers:
+        - event: Coin__Swap(indexed address,uint256,uint256,uint256,uint256,indexed address)
+          handler: handleCoin__Swap
+        - event: Coin__SyncReserves(uint256,uint256,uint256)
+          handler: handleCoin__SyncReserves
+        - event: Coin__HealReserves(uint256,uint256)
+          handler: handleCoin__HealReserves
+        - event: Coin__BurnReserves(uint256,uint256)
+          handler: handleCoin__BurnReserves
+        - event: Coin__ProviderFee(indexed address,uint256,uint256)
+          handler: handleCoin__ProviderFee
+        - event: Coin__TeamFee(indexed address,uint256,uint256)
+          handler: handleCoin__TeamFee
+        - event: Coin__TreasuryFee(indexed address,uint256,uint256)
+          handler: handleCoin__TreasuryFee
+        - event: Coin__Heal(indexed address,uint256)
+          handler: handleCoin__Heal
+        - event: Coin__Burn(indexed address,uint256)
+          handler: handleCoin__Burn
+        - event: Coin__Borrow(indexed address,indexed address,uint256)
+          handler: handleCoin__Borrow
+        - event: Coin__Repay(indexed address,indexed address,uint256)
+          handler: handleCoin__Repay
+        - event: Coin__TeamSet(indexed address)
+          handler: handleCoin__TeamSet
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+      file: ./src/coin.ts

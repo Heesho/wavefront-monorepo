@@ -4,7 +4,12 @@
   "version": "0.1.0",
   "description": "Bonding curve token launcher",
   "license": "MIT",
-  "workspaces": ["packages/*"],
+  "workspaces": {
+    "packages": ["packages/*"],
+    "nohoist": [
+      "@wavefront/subgraph/**"
+    ]
+  },
   "packageManager": "yarn@1.22.22",
   "scripts": {
     "compile": "yarn workspace @wavefront/hardhat compile",

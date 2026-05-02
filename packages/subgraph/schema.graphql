@@ -1,0 +1,104 @@
+type Directory @entity(immutable: false) {
+  id: ID!
+  index: BigInt!
+  txCount: BigInt!
+  swapVolume: BigDecimal!
+  liquidity: BigDecimal!
+}
+
+type User @entity(immutable: false) {
+  id: ID!
+  txCount: BigInt!
+
+  coinsOwned: [Coin!]! @derivedFrom(field: "owner")
+  coinsTeamed: [Coin!]! @derivedFrom(field: "team")
+  coinPositions: [CoinPosition!]! @derivedFrom(field: "user")
+  swaps: [Swap!]! @derivedFrom(field: "user")
+}
+
+type Coin @entity(immutable: false) {
+  id: ID!
+  name: String!
+  symbol: String!
+  owner: User!
+  team: User!
+
+  txCount: BigInt!
+  swapVolume: BigDecimal!
+  liquidity: BigDecimal!
+  totalSupply: BigDecimal!
+  marketCap: BigDecimal!
+  quoteVirtReserve: BigDecimal!
+  quoteRealReserve: BigDecimal!
+  coinReserve: BigDecimal!
+  marketPrice: BigDecimal!
+  floorPrice: BigDecimal!
+  holders: BigInt!
+
+  holderRevenueQuote: BigDecimal!
+  holderRevenueCoin: BigDecimal!
+  teamRevenueQuote: BigDecimal!
+  teamRevenueCoin: BigDecimal!
+  treasuryRevenueQuote: BigDecimal!
+  treasuryRevenueCoin: BigDecimal!
+
+  createdAtTimestamp: BigInt!
+  createdAtBlockNumber: BigInt!
+
+  coinPositions: [CoinPosition!]! @derivedFrom(field: "coin")
+  swaps: [Swap!]! @derivedFrom(field: "coin")
+  coinDayData: [CoinDayData!]! @derivedFrom(field: "coin")
+  coinHourData: [CoinHourData!]! @derivedFrom(field: "coin")
+  coinMinuteData: [CoinMinuteData!]! @derivedFrom(field: "coin")
+}
+
+type CoinPosition @entity(immutable: false) {
+  id: ID!
+  coin: Coin!
+  user: User!
+  balance: BigDecimal!
+  debt: BigDecimal!
+  affiliateRevenueQuote: BigDecimal!
+  affiliateRevenueCoin: BigDecimal!
+}
+
+type Swap @entity(immutable: false) {
+  id: ID!
+  coin: Coin!
+  user: User!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  quoteIn: BigDecimal!
+  quoteOut: BigDecimal!
+  coinIn: BigDecimal!
+  coinOut: BigDecimal!
+  marketPrice: BigDecimal!
+  floorPrice: BigDecimal!
+}
+
+type CoinDayData @entity(immutable: false) {
+  id: ID!
+  coin: Coin!
+  timestamp: BigInt!
+  marketPrice: BigDecimal!
+  floorPrice: BigDecimal!
+  volume: BigDecimal!
+}
+
+type CoinHourData @entity(immutable: false) {
+  id: ID!
+  coin: Coin!
+  timestamp: BigInt!
+  marketPrice: BigDecimal!
+  floorPrice: BigDecimal!
+  volume: BigDecimal!
+}
+
+type CoinMinuteData @entity(immutable: false) {
+  id: ID!
+  coin: Coin!
+  timestamp: BigInt!
+  marketPrice: BigDecimal!
+  floorPrice: BigDecimal!
+  volume: BigDecimal!
+}
