@@ -1,0 +1,20 @@
+{
+  "name": "wavefront-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Bonding curve token launcher",
+  "license": "MIT",
+  "workspaces": ["packages/*"],
+  "packageManager": "yarn@1.22.22",
+  "scripts": {
+    "compile": "yarn workspace @wavefront/hardhat compile",
+    "build:foundry": "yarn workspace @wavefront/foundry build",
+    "test:hardhat": "yarn workspace @wavefront/hardhat test",
+    "test:foundry": "yarn workspace @wavefront/foundry test",
+    "test:subgraph": "yarn workspace @wavefront/subgraph test",
+    "test": "yarn test:hardhat && yarn test:foundry && yarn test:subgraph",
+    "sync-abis": "node scripts/sync-abis.js",
+    "subgraph:prepare": "yarn workspace @wavefront/subgraph prepare",
+    "subgraph:build": "yarn workspace @wavefront/subgraph build"
+  }
+}
