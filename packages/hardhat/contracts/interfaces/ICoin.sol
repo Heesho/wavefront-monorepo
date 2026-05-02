@@ -11,6 +11,7 @@ interface ICoin {
     function core() external view returns (address);
     function quote() external view returns (address);
     function team() external view returns (address);
+    function owner() external view returns (address);
 
     function maxSupply() external view returns (uint256);
     function reserveRealQuoteWad() external view returns (uint256);
