@@ -17,6 +17,10 @@ yarn build:foundry    # forge build
 yarn test             # all packages
 ```
 
+## How the bonding curve works
+
+A detailed walkthrough of the math, virtual reserves, fee split, heal/burn mechanics, and collateralized borrowing is in [`docs/bonding-curve.md`](docs/bonding-curve.md).
+
 ## Design doc
 
 See [`docs/plans/2026-05-01-wavefront-design.md`](docs/plans/2026-05-01-wavefront-design.md).
