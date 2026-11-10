@@ -64,15 +64,21 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
     uint256 public constant RECIPIENT_SHARE_BPS = 2000;
     /// @notice Smallest supply a coin may launch with.
     uint256 public constant MIN_SUPPLY = 1e21;
-    /// @notice Smallest virtual quote reserve a coin may launch with.
-    uint256 public constant MIN_VIRTUAL_QUOTE = 1e3;
+    /// @notice Smallest virtual quote reserve a coin may launch with, in raw quote units.
+    /// @dev Re-creating a position can round by a raw unit of quote. This keeps one unit to a millionth
+    ///      of the curve's depth, so that rounding never matters to a market.
+    uint256 public constant MIN_VIRTUAL_QUOTE = 1e6;
     /// @notice Lowest tick a launch floor may sit on.
     int24 public constant MIN_FLOOR_TICK = -800_000;
     /// @notice Highest tick a launch floor may sit on; leaves room for the price to rise.
     int24 public constant MAX_FLOOR_TICK = 400_000;
-    /// @notice Coins a burn always leaves in circulation, so that burning cannot collapse a market.
-    /// @dev v1 gets the same protection from the one coin its launcher keeps for ever.
-    uint256 public constant MIN_CIRCULATING = 1e18;
+    /// @notice Share of a coin's supply, in basis points, that holders must have before a heal or burn
+    ///         is applied (0.1%).
+    /// @dev Heals and burns go to whoever holds the coin. If that is next to nobody, a little quote
+    ///      would lift the floor many times over, cheaply and for good, and a burn would take nearly
+    ///      the whole supply with it. Until holders have this share they wait as pending. Coins that
+    ///      are themselves waiting to be burned do not count as held.
+    uint256 public constant MIN_CIRCULATING_BPS = 10;
     /// @notice A burn is left pending if it would thin the position out to less liquidity than this.
     uint128 public constant MIN_LIQUIDITY = 1e9;
     /// @dev A heal or burn lifts the price with the floor; this many ticks are kept clear below `maxTick`.
@@ -453,16 +459,16 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
 
     /// @dev Applies the pending heal and burn to the reserves in `c`, exactly as v1 does: a heal adds
     ///      quote; a burn takes coins out of the pool in the proportion they leave circulation.
-    ///      They are applied together or not at all: they stay pending while nobody holds a coin to
-    ///      benefit, or while applying them would leave the range the pool can represent.
+    ///      They are applied together or not at all: they stay pending while too little of the supply
+    ///      circulates for anyone to benefit, or while applying them would leave the range the pool can
+    ///      represent.
     /// @return sqrtTargetX96 Floor the reserves in `c` support; zero if nothing was applied.
     function _applyPending(Market storage m, Curve memory c) internal view returns (uint256 sqrtTargetX96) {
         uint256 coins = c.coins;
         uint256 circulating = c.circulating;
-        if (circulating <= MIN_CIRCULATING || coins == 0) return 0;
-
         uint256 burned = m.pendingBurn;
-        if (burned > circulating - MIN_CIRCULATING) burned = circulating - MIN_CIRCULATING;
+        if (coins == 0 || circulating - burned <= ((circulating + coins) * MIN_CIRCULATING_BPS) / BPS) return 0;
+
         // a burn scales liquidity by sqrt(1 - burned / circulating); it may not thin the position to nothing
         uint256 liquidity = m.liquidity;
         if (

@@ -168,7 +168,7 @@ contract WavefrontHookTest is WavefrontFixture {
         hook.launch(params);
 
         params = _defaultParams(creator);
-        params.virtualQuote = 0;
+        params.virtualQuote = hook.MIN_VIRTUAL_QUOTE() - 1;
         vm.expectRevert(IWavefrontHook.InvalidLaunchParams.selector);
         hook.launch(params);
 

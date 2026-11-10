@@ -194,9 +194,10 @@ abstract contract WavefrontInvariants is WavefrontFixture {
 
             uint256 inPool = _positionCoin(m, sqrtPrice);
             uint256 circulating = hook.effectiveSupply(address(handler.coins(i))) - inPool;
-            // with no more than the minimum in circulation there is nobody for a floor to protect, and
-            // the hook leaves it where it is (`inPool` is rounded here, hence the few wei of allowance)
-            if (circulating <= hook.MIN_CIRCULATING() + 1e6) continue;
+            // while holders have no more than the minimum share of the supply the hook leaves the floor
+            // where it is (`inPool` is rounded here, hence the few wei of allowance)
+            uint256 minHeld = ((circulating + inPool) * hook.MIN_CIRCULATING_BPS()) / 10_000;
+            if (circulating - m.pendingBurn <= minHeld + 1e6) continue;
             uint256 quote = m.idleQuote + m.totalDebt;
             if (sqrtPrice > sqrtLower) quote += SqrtPriceMath.getAmount1Delta(sqrtLower, sqrtPrice, m.liquidity, true);
 
@@ -208,7 +209,6 @@ abstract contract WavefrontInvariants is WavefrontFixture {
             // With the pending heal and burn applied the way the hook applies them. The hook counts the
             // position's quote in whole raw units, rounded down; allow it three of them.
             uint256 burn = m.pendingBurn;
-            if (burn > circulating - hook.MIN_CIRCULATING()) burn = circulating - hook.MIN_CIRCULATING();
             if (
                 FullMath.mulDiv(uint256(m.liquidity) * m.liquidity, circulating - burn, circulating)
                     < uint256(hook.MIN_LIQUIDITY()) * hook.MIN_LIQUIDITY()

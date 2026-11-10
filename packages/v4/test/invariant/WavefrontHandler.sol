@@ -93,7 +93,7 @@ contract WavefrontHandler is Test {
             team: launcher,
             // every combination below is inside the hook's launch bounds
             supply: _logUniform(supplySeed, 21, 33),
-            virtualQuote: _logUniform(virtualSeed, 3, 30),
+            virtualQuote: _logUniform(virtualSeed, 6, 30),
             salt: bytes32(0)
         });
         // The coin must sort below its quote; try salts the way a front end would. A salt is never

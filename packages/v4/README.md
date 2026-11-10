@@ -28,7 +28,8 @@ in the same transaction. The creator chooses:
 - `name`, `symbol` and a metadata `uri` (ERC-7572 `contractURI`; the coin's owner can change it later).
 - `quote`: any standard ERC20. No fee-on-transfer or rebasing tokens; native ETH goes in as WETH.
 - `supply` and `virtualQuote`: the launch price is `virtualQuote / supply`, and a larger `virtualQuote`
-  means it takes more quote to move the price.
+  means it takes more quote to move the price. At least 1,000 coins of supply and 1,000,000 raw units
+  of virtual quote (1 USDC), so that a raw unit of rounding is never more than a millionth of the curve.
 - `owner` and `team`: the owner controls the URI and team; the team receives the coin's fee share.
 - `salt`: the coin's address must sort below the quote token's, so a front end tries salts with
   `predictCoin` until one does. The address also depends on the caller, so a pending launch cannot be
@@ -60,9 +61,13 @@ the pool's coins put it at (`CurveMath.sqrtPriceFor`). There is no separate heal
   `claimFees`, because inside a swap the hook cannot move tokens the trader has not paid yet.
 - **Borrowers lock a small fixed margin.** On top of the coins backing a debt, each borrower locks one
   tick-spacing of coins at the floor (about 0.05% of supply). Positions smaller than that cannot borrow.
-- **Donations wait for a holder.** `heal` and `burn` are applied once they are worth a tick; a heal into
-  a coin nobody holds goes to the first buyer.
-- **A burn always leaves one coin circulating**, which v1 gets from the coin its launcher keeps.
+- **Fees and donations need holders.** A heal or burn goes to whoever holds the coin. While holders
+  have less than 0.1% of the supply it waits as pending instead of being applied, so that a few cents'
+  worth of coins cannot capture a donation and lift the floor many times over, and a burn cannot take
+  nearly the whole supply with it. v1 applies both at once. A donation into a coin nobody holds
+  therefore goes to the first buyers of that 0.1%. This raises the cost of inflating an empty coin's
+  floor from nothing to the fees on a real purchase; a creator's own first buy at launch raises it
+  further.
 - **Limits of the tick range.** A heal or burn that would push the price within 100,000 ticks of the top
   of v4's range, or the position past half of v4's per-tick liquidity limit, stays pending rather than
   being applied. A launch above that liquidity is refused.
