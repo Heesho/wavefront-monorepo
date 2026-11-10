@@ -76,17 +76,17 @@ A key property: at launch, market price equals floor price. As the first buyer p
 
 ## 4. The buy mechanic, in detail
 
-The user-facing entrypoint is `Coin.buy(quoteRawIn, minCoinAmtOut, deadline, to, provider)`. It does three things in order:
+The user-facing entrypoint is `Coin.buy(quoteRawIn, minCoinAmtOut, deadline, to)`. It does four things in order:
 
 1. Compute how many coins to mint, based on the curve.
-2. Distribute fees to provider, team, treasury (see §5).
+2. Distribute fees to team and treasury (see §5).
 3. Heal whatever quote is left after fees (see §6).
 4. Mint the calculated coin amount to `to`.
 
 Step 1 is the curve math. Skipping the fee for clarity:
 
 ```
-fee     = quoteRawIn * FEE / DIVISOR        // 1% of the trade
+fee     = quoteRawIn * FEE / DIVISOR        // 2% of the trade
 netRaw  = quoteRawIn - fee                  // amount that actually moves the curve
 netWad  = rawToWad(netRaw)                  // scale up to 18 decimals
 
@@ -109,43 +109,37 @@ The check `coinAmtOut < minCoinAmtOut` reverts with `Coin__Slippage()` to give t
 A worked example: starting from the launch state, suppose a user buys 1000 USDC.
 
 ```
-fee      = 1000 * 100 / 10_000           = 10 USDC
-netRaw   = 1000 - 10                     = 990 USDC
-netWad   = 990 * 1e12                    = 9.9e14 wad (USDC has 6 decimals; quoteScale = 1e12)
+fee      = 1000 * 200 / 10_000           = 20 USDC
+netRaw   = 1000 - 20                     = 980 USDC
+netWad   = 980 * 1e12                    = 9.8e14 wad (USDC has 6 decimals; quoteScale = 1e12)
 
 x0 = 100_000 wad (virt) + 0 wad (real)   = 100_000 * 1e18 wad
 y0 = 1_000_000_000 * 1e18 wad
-x1 = x0 + 9.9e14 = ...
+x1 = x0 + 9.8e14 = ...
 ```
 
-The actual numbers in wad arithmetic get unwieldy quickly, but the upshot is: the buyer receives roughly `(990 / 100990) * 1_000_000_000 ≈ 9_802_950` coins (back-of-the-envelope; the contract's exact answer differs by rounding direction).
+The actual numbers in wad arithmetic get unwieldy quickly, but the upshot is: the buyer receives roughly `(980 / 100980) * 1_000_000_000 ≈ 9_704_892` coins (back-of-the-envelope; the contract's exact answer differs by rounding direction).
 
 ## 5. The fee split
 
-The 1% trade fee is split four ways:
+The 2% trade fee is split three ways:
 
 | Recipient | Fraction | Conditional? |
 |---|---|---|
-| `provider` (affiliate) | 20% of fee | Only if `provider != address(0)` |
 | `team` | 20% of fee | Only if `team != address(0)` |
 | `treasury` | 20% of fee | Only if `Core.treasury != address(0)` |
-| heal/burn | 40% (or more, if any conditional skips) | Always (the leftover) |
+| heal/burn | 60% (or more, if any conditional skips) | Always (the leftover) |
 
 (20% per recipient comes from `FEE_AMOUNT / DIVISOR = 2_000 / 10_000`.)
 
-All three recipient branches are symmetric: each is conditional on its address being non-zero. If any recipient is unset, that 20% slice is **not** lost — it stays in `remainingRaw` and rolls into the heal (on buy) or burn (on sell). So the unconditional invariant is "100% of fees are accounted for"; how they split between recipients and the heal pool is configurable.
+Both recipient branches are symmetric: each is conditional on its address being non-zero. If any recipient is unset, that 20% slice is **not** lost — it stays in `remainingRaw` and rolls into the heal (on buy) or burn (on sell). So the unconditional invariant is "100% of fees are accounted for"; how they split between recipients and the heal pool is configurable.
 
 Concretely, here's the buy-side fee path:
 
 ```solidity
-function _processBuyFees(uint256 quoteRaw, address provider) internal returns (uint256 remaining) {
+function _processBuyFees(uint256 quoteRaw) internal returns (uint256 remaining) {
     remaining = quoteRaw;
     uint256 feeAmount = (quoteRaw * FEE_AMOUNT) / DIVISOR;
-
-    if (provider != address(0)) {
-        IERC20(quote).safeTransfer(provider, feeAmount);
-        remaining -= feeAmount;
-    }
 
     if (team != address(0)) {
         IERC20(quote).safeTransfer(team, feeAmount);
@@ -162,18 +156,18 @@ function _processBuyFees(uint256 quoteRaw, address provider) internal returns (u
 }
 ```
 
-Whatever's left over after the recipients are paid (`remaining`) gets healed back into the curve. If all three of `provider`, `team`, and `treasury` are zero, the entire fee pool gets healed — every cent of the trade fee turns into a floor-price ratchet for holders.
+Whatever's left over after the recipients are paid (`remaining`) gets healed back into the curve. If both `team` and `treasury` are zero, the entire fee pool gets healed — every cent of the trade fee turns into a floor-price ratchet for holders.
 
 The sell-side fee logic mirrors this exactly, with `_mint` instead of `safeTransfer`:
 
-- Provider, team, and treasury each receive `feeAmount` _coins_ (newly minted).
+- Team and treasury each receive `feeAmount` _coins_ (newly minted).
 - The leftover coin is burned via the burn-reserve mechanism (see §7).
 
 This keeps the design symmetric: on a buy, the fee is denominated in the asset coming in (quote); on a sell, the fee is denominated in the asset coming in (coin).
 
-### Why a four-way split
+### Why a three-way split
 
-Three of the recipients are external value flows (affiliate marketing, team revenue, protocol revenue). The fourth — heal/burn — is the most interesting. Fees that aren't paid out are recycled back into the curve, and that recycling pushes the floor price up. Holders benefit on every trade even when they don't take a fee directly. We unpack that next.
+Two of the recipients are external value flows (team revenue, protocol revenue). The third — heal/burn — is the most interesting, and it takes the largest share. Fees that aren't paid out are recycled back into the curve, and that recycling pushes the floor price up. Holders benefit on every trade even when they don't take a fee directly. We unpack that next.
 
 ## 6. The heal mechanism
 
@@ -291,7 +285,7 @@ But the rises happen in the same proportion (`y / y_new = m / m_new`), so the *g
 
 Like heal, burn has a public form: `Coin.burn(coinAmt)`. Anyone holding coins can elect to torch them. Their balance goes down, the curve's `maxSupply` goes down, and the floor price for everyone else goes up. This is "holder revenue, denominated in coins".
 
-Burn is the natural sink for the leftover coin fees on sells. Sells generate coin-denominated fees (because the curve gives quote out and accepts coin in); after the provider/team/treasury minted-coin payments, whatever's left gets `_burnCoinReserves`d.
+Burn is the natural sink for the leftover coin fees on sells. Sells generate coin-denominated fees (because the curve gives quote out and accepts coin in); after the team/treasury minted-coin payments, whatever's left gets `_burnCoinReserves`d.
 
 ### Why heal and burn are interesting
 
@@ -300,7 +294,7 @@ These two mechanics are what make the wavefront curve more than a vanilla AMM. T
 1. **Floor ratchet under fees.** Every trade leaks a small amount of value into the floor. Holders accrue value passively, similar to how fees in a Uniswap V2 LP position appreciate.
 2. **External value injection.** Anyone — sponsors, the team, an integrator, a community fund — can heal or burn without trading. The floor moves, no slippage incurred. This is a much cleaner buyback mechanism than executing onchain swaps.
 
-Combined with the affiliate fee, you get a system where third parties have a reason to bring traders (they earn a 20% slice of fees), the team has a reason to launch and curate (they earn another 20% in perpetuity), the protocol has a sustainable revenue stream (the treasury cut), and holders steadily accrue value through the heal pump on the leftover.
+The result is a system where the team has a reason to launch and curate (they earn 20% of fees in perpetuity), the protocol has a sustainable revenue stream (the treasury's 20%), and holders steadily accrue value through the heal pump on the remaining 60%.
 
 ## 8. Borrow and repay: free liquidity against your bag
 
@@ -380,7 +374,7 @@ A wavefront coin has three address-based roles relevant to the fee logic:
 - **Team** — the recipient of team fees. Set in the constructor (`team = _owner`), updatable by the owner via `setTeam(newTeam)`. Can be set to `address(0)`, which causes the team's 20% slice to be healed instead of transferred.
 - **Treasury** — the protocol-wide fee recipient. Lives on `Core`, not on `Coin`. Can be unset (`address(0)` skips the treasury branch and adds that 20% to the heal/burn pool). The owner of `Core` controls it via `setTreasury(...)`.
 
-The `provider` is not really a role on the coin — it's per-call, a parameter on `buy` and `sell`. Router has its own `account_Affiliate` mapping that persists the first non-zero affiliate per user; subsequent calls forward that persisted address as the provider, so traders only need to specify their referrer once.
+There is no affiliate or referrer role. An earlier design paid 20% of the fee to a per-call `provider` address; it was removed because any trader could name their own address and collect it.
 
 ## 11. Wad/raw conversion
 
@@ -413,7 +407,7 @@ The principle is: every rounding choice resolves toward the curve's reserves rat
 
 All public state-changing entrypoints — `buy`, `sell`, `borrow`, `repay`, `heal`, `burn` — are guarded by OpenZeppelin's `nonReentrant`. The `Coin` contract is also `ReentrancyGuard`-aware. The most subtle path is `heal()`, where `safeTransferFrom` runs before `_healQuoteReserves` — but the only state mutation that follows is on the coin's own reserves, and the call is reentrant-protected, so a malicious quote token cannot drain via reentrancy.
 
-The fee distribution uses `safeTransfer` to external addresses (provider, team, treasury). If a recipient is a non-zero contract that reverts on receipt of ERC20s, the entire trade reverts — that's the cost of pointing fees at a misbehaving contract, and it's the recipient's responsibility to be receivable. To intentionally direct a recipient's slice to the heal/burn pool instead, set the address to `address(0)`: the corresponding branch is then skipped and the share rolls into the leftover that gets healed (on buy) or burned (on sell).
+The fee distribution uses `safeTransfer` to external addresses (team, treasury). If a recipient is a non-zero contract that reverts on receipt of ERC20s, the entire trade reverts — that's the cost of pointing fees at a misbehaving contract, and it's the recipient's responsibility to be receivable. To intentionally direct a recipient's slice to the heal/burn pool instead, set the address to `address(0)`: the corresponding branch is then skipped and the share rolls into the leftover that gets healed (on buy) or burned (on sell).
 
 ## 14. Glossary
 
@@ -428,7 +422,7 @@ The fee distribution uses `safeTransfer` to external addresses (provider, team, 
 - **heal**: a one-way deposit of quote that raises the floor price.
 - **burn**: a one-way burn of coin that raises both prices but preserves their ratio.
 - **credit**: max quote a holder can borrow against their coin without affecting the floor.
-- **provider / team / treasury**: fee recipients, see §10.
+- **team / treasury**: fee recipients, see §10.
 
 ## 15. Suggested reading order in the code
 
@@ -442,6 +436,6 @@ If you want to understand the curve from scratch by reading the contract:
 6. Read `_burnCoinReserves`. Same: verify the proportions.
 7. Finish with `getAccountCredit` and `getAccountTransferrable`. The collateral lock check in `_beforeTokenTransfer` ties it all together.
 
-Then look at `Core.create` to see how the launcher coordinates initial setup, and `Router.buy` / `Router.sell` to see the user-facing wrapper that handles affiliate persistence.
+Then look at `Core.create` to see how the launcher coordinates initial setup, and `Router.buy` / `Router.sell` to see the user-facing wrapper.
 
 That's the whole curve. Roughly 400 lines of Solidity for a market-making engine with virtual reserves, four-way fee distribution, an automatic floor ratchet, manual healing and burning, and zero-rate collateralized borrowing.

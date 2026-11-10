@@ -12,7 +12,7 @@ describe("Coin", function () {
 
       await u.connect(alice).approve(coin.address, 999);
       await expect(
-        coin.connect(alice).buy(999, 0, 0, alice.address, ZERO)
+        coin.connect(alice).buy(999, 0, 0, alice.address)
       ).to.be.revertedWith("Coin__MinTradeSize");
     });
 
@@ -23,7 +23,7 @@ describe("Coin", function () {
       const past = (await ethers.provider.getBlock("latest")).timestamp - 1;
       await u.connect(alice).approve(coin.address, usdc(100));
       await expect(
-        coin.connect(alice).buy(usdc(100), 0, past, alice.address, ZERO)
+        coin.connect(alice).buy(usdc(100), 0, past, alice.address)
       ).to.be.revertedWith("Coin__Expired");
     });
 
@@ -34,7 +34,7 @@ describe("Coin", function () {
       await u.connect(alice).approve(coin.address, usdc(100));
       // Demand absurdly large coin output to trigger slippage
       await expect(
-        coin.connect(alice).buy(usdc(100), wei(1_000_000_000), 0, alice.address, ZERO)
+        coin.connect(alice).buy(usdc(100), wei(1_000_000_000), 0, alice.address)
       ).to.be.revertedWith("Coin__Slippage");
     });
 
@@ -50,7 +50,7 @@ describe("Coin", function () {
 
       const buyAmount = usdc(500);
       await u.connect(alice).approve(coin.address, buyAmount);
-      await coin.connect(alice).buy(buyAmount, 0, 0, alice.address, ZERO);
+      await coin.connect(alice).buy(buyAmount, 0, 0, alice.address);
 
       const balance = await coin.balanceOf(alice.address);
       expect(balance).to.be.gt(0);
@@ -68,81 +68,77 @@ describe("Coin", function () {
   });
 
   describe("fee distribution", function () {
-    it("splits fees: provider, team, treasury, heal", async function () {
-      const { usdc: u, router, creator, alice, affiliate, treasury } =
-        await deployWavefront();
+    it("splits fees: team, treasury, heal", async function () {
+      const { usdc: u, router, creator, alice, treasury } = await deployWavefront();
       const coin = await createCoin(router, u, creator);
 
       const treasuryBefore = await u.balanceOf(treasury.address);
       const teamBefore = await u.balanceOf(creator.address);
-      const affiliateBefore = await u.balanceOf(affiliate.address);
+      const coinBefore = await u.balanceOf(coin.address);
       const virtBefore = await coin.reserveVirtQuoteWad();
 
       const buyAmount = usdc(1000);
       await u.connect(alice).approve(coin.address, buyAmount);
-      await coin.connect(alice).buy(buyAmount, 0, 0, alice.address, affiliate.address);
+      await coin.connect(alice).buy(buyAmount, 0, 0, alice.address);
 
       const treasuryDelta = (await u.balanceOf(treasury.address)).sub(treasuryBefore);
       const teamDelta = (await u.balanceOf(creator.address)).sub(teamBefore);
-      const affiliateDelta = (await u.balanceOf(affiliate.address)).sub(affiliateBefore);
+      const coinDelta = (await u.balanceOf(coin.address)).sub(coinBefore);
       const virtAfter = await coin.reserveVirtQuoteWad();
 
-      // FEE = 100 / DIVISOR = 10000 → 1% of trade is the fee pool
+      // FEE = 200 / DIVISOR = 10000 → 2% of trade is the fee pool
       // FEE_AMOUNT = 2000 / DIVISOR = 10000 → 20% of fee pool per recipient
-      // Fee pool = 1000 * 0.01 = 10 USDC. Each recipient gets 2 USDC. Heal gets 4 USDC.
-      const feePool = buyAmount.mul(100).div(10000); // 10 USDC
-      const perRecipient = feePool.mul(2000).div(10000); // 2 USDC
+      // Fee pool = 1000 * 0.02 = 20 USDC. Team and treasury get 4 USDC each. Heal gets 12 USDC.
+      const feePool = buyAmount.mul(200).div(10000); // 20 USDC
+      const perRecipient = feePool.mul(2000).div(10000); // 4 USDC
 
-      expect(affiliateDelta).to.eq(perRecipient);
+      expect(feePool).to.eq(usdc(20));
       expect(teamDelta).to.eq(perRecipient);
       expect(treasuryDelta).to.eq(perRecipient);
-      // Virt reserves grew (heal happened with the leftover ~4 USDC)
+      // Everything except the two payouts stays in the curve: the net trade plus the healed 60% of the fee
+      expect(coinDelta).to.eq(buyAmount.sub(perRecipient.mul(2)));
       expect(virtAfter).to.be.gt(virtBefore);
     });
 
-    it("sends provider's share to heal when affiliate is zero", async function () {
-      const { usdc: u, router, creator, alice, treasury } =
-        await deployWavefront();
-      const coin = await createCoin(router, u, creator);
-
-      const teamBefore = await u.balanceOf(creator.address);
-      const treasuryBefore = await u.balanceOf(treasury.address);
-
-      const buyAmount = usdc(1000);
-      await u.connect(alice).approve(coin.address, buyAmount);
-      await coin.connect(alice).buy(buyAmount, 0, 0, alice.address, ZERO);
-
-      const teamDelta = (await u.balanceOf(creator.address)).sub(teamBefore);
-      const treasuryDelta = (await u.balanceOf(treasury.address)).sub(treasuryBefore);
-      const feePool = buyAmount.mul(100).div(10000);
-      const perRecipient = feePool.mul(2000).div(10000);
-
-      expect(teamDelta).to.eq(perRecipient);
-      expect(treasuryDelta).to.eq(perRecipient);
-      // No provider fee; the provider's share is healed instead
-    });
-
     it("sends treasury's share to heal when treasury is unset", async function () {
-      const { usdc: u, router, creator, alice, owner, affiliate } =
-        await deployWavefront();
+      const { usdc: u, router, creator, alice, owner } = await deployWavefront();
       // Unset treasury
       await (await ethers.getContractAt("Core", await router.core(), owner)).setTreasury(ZERO);
       const coin = await createCoin(router, u, creator);
 
       const teamBefore = await u.balanceOf(creator.address);
-      const affiliateBefore = await u.balanceOf(affiliate.address);
+      const coinBefore = await u.balanceOf(coin.address);
 
       const buyAmount = usdc(1000);
       await u.connect(alice).approve(coin.address, buyAmount);
-      await coin.connect(alice).buy(buyAmount, 0, 0, alice.address, affiliate.address);
+      await coin.connect(alice).buy(buyAmount, 0, 0, alice.address);
 
       const teamDelta = (await u.balanceOf(creator.address)).sub(teamBefore);
-      const affiliateDelta = (await u.balanceOf(affiliate.address)).sub(affiliateBefore);
-      const feePool = buyAmount.mul(100).div(10000);
+      const coinDelta = (await u.balanceOf(coin.address)).sub(coinBefore);
+      const feePool = buyAmount.mul(200).div(10000);
       const perRecipient = feePool.mul(2000).div(10000);
 
       expect(teamDelta).to.eq(perRecipient);
-      expect(affiliateDelta).to.eq(perRecipient);
+      // Only the team was paid; the treasury's share was healed
+      expect(coinDelta).to.eq(buyAmount.sub(perRecipient));
+    });
+
+    it("sell fees are paid in coin to team and treasury", async function () {
+      const { usdc: u, router, creator, alice, treasury } = await deployWavefront();
+      const coin = await createCoin(router, u, creator);
+
+      await u.connect(alice).approve(coin.address, usdc(1000));
+      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address);
+
+      const sellAmount = await coin.balanceOf(alice.address);
+      const teamBefore = await coin.balanceOf(creator.address);
+      const treasuryBefore = await coin.balanceOf(treasury.address);
+      await coin.connect(alice).sell(sellAmount, 0, 0, alice.address);
+
+      const feePool = sellAmount.mul(200).div(10000);
+      const perRecipient = feePool.mul(2000).div(10000);
+      expect((await coin.balanceOf(creator.address)).sub(teamBefore)).to.eq(perRecipient);
+      expect((await coin.balanceOf(treasury.address)).sub(treasuryBefore)).to.eq(perRecipient);
     });
   });
 
@@ -152,12 +148,12 @@ describe("Coin", function () {
       const coin = await createCoin(router, u, creator);
 
       await u.connect(alice).approve(coin.address, usdc(1000));
-      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address, ZERO);
+      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address);
 
       const coinBalance = await coin.balanceOf(alice.address);
       const usdcBefore = await u.balanceOf(alice.address);
 
-      await coin.connect(alice).sell(coinBalance, 0, 0, alice.address, ZERO);
+      await coin.connect(alice).sell(coinBalance, 0, 0, alice.address);
 
       expect(await coin.balanceOf(alice.address)).to.eq(0);
       expect(await u.balanceOf(alice.address)).to.be.gt(usdcBefore);
@@ -168,11 +164,11 @@ describe("Coin", function () {
       const coin = await createCoin(router, u, creator);
 
       await u.connect(alice).approve(coin.address, usdc(1000));
-      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address, ZERO);
+      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address);
 
       const coinBalance = await coin.balanceOf(alice.address);
       await expect(
-        coin.connect(alice).sell(coinBalance, usdc(1_000_000), 0, alice.address, ZERO)
+        coin.connect(alice).sell(coinBalance, usdc(1_000_000), 0, alice.address)
       ).to.be.revertedWith("Coin__Slippage");
     });
 
@@ -181,7 +177,7 @@ describe("Coin", function () {
       const coin = await createCoin(router, u, creator);
 
       await expect(
-        coin.connect(alice).sell(999, 0, 0, alice.address, ZERO)
+        coin.connect(alice).sell(999, 0, 0, alice.address)
       ).to.be.revertedWith("Coin__MinTradeSize");
     });
   });
@@ -192,7 +188,7 @@ describe("Coin", function () {
       const coin = await createCoin(router, u, creator);
 
       await u.connect(alice).approve(coin.address, usdc(1000));
-      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address, ZERO);
+      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address);
 
       const credit = await coin.getAccountCredit(alice.address);
       expect(credit).to.be.gt(0);
@@ -207,7 +203,7 @@ describe("Coin", function () {
       const coin = await createCoin(router, u, creator);
 
       await u.connect(alice).approve(coin.address, usdc(1000));
-      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address, ZERO);
+      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address);
 
       const credit = await coin.getAccountCredit(alice.address);
       await expect(
@@ -220,7 +216,7 @@ describe("Coin", function () {
       const coin = await createCoin(router, u, creator);
 
       await u.connect(alice).approve(coin.address, usdc(1000));
-      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address, ZERO);
+      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address);
 
       const credit = await coin.getAccountCredit(alice.address);
       await coin.connect(alice).borrow(alice.address, credit);
@@ -237,7 +233,7 @@ describe("Coin", function () {
       const coin = await createCoin(router, u, creator);
 
       await u.connect(alice).approve(coin.address, usdc(1000));
-      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address, ZERO);
+      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address);
 
       const credit = await coin.getAccountCredit(alice.address);
       await coin.connect(alice).borrow(alice.address, credit);
@@ -281,7 +277,7 @@ describe("Coin", function () {
       const coin = await createCoin(router, u, creator);
 
       await u.connect(alice).approve(coin.address, usdc(1000));
-      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address, ZERO);
+      await coin.connect(alice).buy(usdc(1000), 0, 0, alice.address);
 
       const balance = await coin.balanceOf(alice.address);
       const maxSupplyBefore = await coin.maxSupply();
@@ -324,7 +320,7 @@ describe("Coin", function () {
       const virtBefore = await coin.reserveVirtQuoteWad();
       const buyAmt = usdc(1000);
       await u.connect(alice).approve(coin.address, buyAmt);
-      await coin.connect(alice).buy(buyAmt, 0, 0, alice.address, ZERO);
+      await coin.connect(alice).buy(buyAmt, 0, 0, alice.address);
 
       // No team transfer should have happened (team is zero)
       // The team's share is healed instead, so virt reserves grow more than they would with team set
@@ -350,10 +346,10 @@ describe("Coin", function () {
       const bobBefore = await u.balanceOf(bob.address);
       const buyAmount = usdc(1000);
       await u.connect(alice).approve(coin.address, buyAmount);
-      await coin.connect(alice).buy(buyAmount, 0, 0, alice.address, ZERO);
+      await coin.connect(alice).buy(buyAmount, 0, 0, alice.address);
 
       const bobDelta = (await u.balanceOf(bob.address)).sub(bobBefore);
-      const feePool = buyAmount.mul(100).div(10000);
+      const feePool = buyAmount.mul(200).div(10000);
       const perRecipient = feePool.mul(2000).div(10000);
       expect(bobDelta).to.eq(perRecipient);
     });

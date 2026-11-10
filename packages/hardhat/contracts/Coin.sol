@@ -14,7 +14,7 @@ contract Coin is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     uint256 public constant PRECISION = 1e18;
-    uint256 public constant FEE = 100;
+    uint256 public constant FEE = 200;
     uint256 public constant FEE_AMOUNT = 2_000;
     uint256 public constant DIVISOR = 10_000;
     uint256 public constant MIN_TRADE_SIZE = 1_000;
@@ -59,7 +59,6 @@ contract Coin is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, Ownable {
     event Coin__SyncReserves(uint256 reserveRealQuoteWad, uint256 reserveVirtQuoteWad, uint256 reserveCoinAmt);
     event Coin__HealReserves(uint256 quoteWad, uint256 virtAddWad);
     event Coin__BurnReserves(uint256 coinAmt, uint256 reserveBurn);
-    event Coin__ProviderFee(address indexed to, uint256 quoteRaw, uint256 coinAmt);
     event Coin__TeamFee(address indexed to, uint256 quoteRaw, uint256 coinAmt);
     event Coin__TreasuryFee(address indexed to, uint256 quoteRaw, uint256 coinAmt);
     event Coin__Heal(address indexed who, uint256 quoteRaw);
@@ -120,7 +119,7 @@ contract Coin is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, Ownable {
         emit Coin__TeamSet(newTeam);
     }
 
-    function buy(uint256 quoteRawIn, uint256 minCoinAmtOut, uint256 deadline, address to, address provider)
+    function buy(uint256 quoteRawIn, uint256 minCoinAmtOut, uint256 deadline, address to)
         external
         nonReentrant
         notZeroTo(to)
@@ -134,13 +133,13 @@ contract Coin is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, Ownable {
         emit Coin__Swap(msg.sender, quoteRawIn, 0, 0, coinAmtOut, to);
         IERC20(quote).safeTransferFrom(msg.sender, address(this), quoteRawIn);
 
-        uint256 healRaw = _processBuyFees(feeRaw, provider);
+        uint256 healRaw = _processBuyFees(feeRaw);
         if (healRaw > 0) _healQuoteReserves(healRaw);
 
         _mint(to, coinAmtOut);
     }
 
-    function sell(uint256 coinAmtIn, uint256 minQuoteRawOut, uint256 deadline, address to, address provider)
+    function sell(uint256 coinAmtIn, uint256 minQuoteRawOut, uint256 deadline, address to)
         external
         nonReentrant
         notZeroTo(to)
@@ -154,7 +153,7 @@ contract Coin is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, Ownable {
         emit Coin__Swap(msg.sender, 0, coinAmtIn, quoteRawOut, 0, to);
         _burn(msg.sender, coinAmtIn);
 
-        uint256 burned = _processSellFees(feeAmt, provider);
+        uint256 burned = _processSellFees(feeAmt);
         if (burned > 0) _burnCoinReserves(burned);
 
         IERC20(quote).safeTransfer(to, quoteRawOut);
@@ -247,15 +246,9 @@ contract Coin is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, Ownable {
         emit Coin__SyncReserves(reserveRealQuoteWad, reserveVirtQuoteWad, reserveCoinAmt);
     }
 
-    function _processBuyFees(uint256 quoteRaw, address provider) internal returns (uint256 remainingRaw) {
+    function _processBuyFees(uint256 quoteRaw) internal returns (uint256 remainingRaw) {
         remainingRaw = quoteRaw;
         uint256 feeRaw = (quoteRaw * FEE_AMOUNT) / DIVISOR;
-
-        if (provider != address(0)) {
-            IERC20(quote).safeTransfer(provider, feeRaw);
-            emit Coin__ProviderFee(provider, feeRaw, 0);
-            remainingRaw -= feeRaw;
-        }
 
         if (team != address(0)) {
             IERC20(quote).safeTransfer(team, feeRaw);
@@ -273,15 +266,9 @@ contract Coin is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, Ownable {
         return remainingRaw;
     }
 
-    function _processSellFees(uint256 coinAmt, address provider) internal returns (uint256 remainingAmt) {
+    function _processSellFees(uint256 coinAmt) internal returns (uint256 remainingAmt) {
         remainingAmt = coinAmt;
         uint256 feeAmt = (coinAmt * FEE_AMOUNT) / DIVISOR;
-
-        if (provider != address(0)) {
-            _mint(provider, feeAmt);
-            emit Coin__ProviderFee(provider, 0, feeAmt);
-            remainingAmt -= feeAmt;
-        }
 
         if (team != address(0)) {
             _mint(team, feeAmt);

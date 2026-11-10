@@ -8,7 +8,10 @@ import {Core} from "../src/Core.sol";
 import {Router} from "../src/Router.sol";
 import {Multicall} from "../src/Multicall.sol";
 
-contract WavefrontTest is Test {
+/// @dev Shared deployment and helpers. Tests are split across two contracts because solc 0.8.19's
+///      via-IR pipeline cannot move stack variables to memory in forge-std test contracts, and one
+///      contract holding every test exceeds the stack limit.
+abstract contract WavefrontFixture is Test {
     USDC internal usdc;
     Core internal core;
     Router internal router;
@@ -19,7 +22,6 @@ contract WavefrontTest is Test {
     address internal creator = makeAddr("creator");
     address internal alice = makeAddr("alice");
     address internal bob = makeAddr("bob");
-    address internal affiliate = makeAddr("affiliate");
 
     uint256 internal constant ONE_USDC = 1e6;
     uint256 internal constant MILLION_USDC = 1_000_000 * ONE_USDC;
@@ -27,9 +29,9 @@ contract WavefrontTest is Test {
     function setUp() public {
         usdc = new USDC();
 
-        for (uint256 i = 0; i < 6; i++) {
-            address signer = [owner, creator, alice, bob, affiliate, treasury][i];
-            usdc.mint(signer, MILLION_USDC);
+        address[5] memory funded = [owner, creator, alice, bob, treasury];
+        for (uint256 i = 0; i < funded.length; i++) {
+            usdc.mint(funded[i], MILLION_USDC);
         }
 
         vm.startPrank(owner);
@@ -48,6 +50,15 @@ contract WavefrontTest is Test {
         return Coin(coinAddr);
     }
 
+    function _buy(Coin coin, address buyer, uint256 quoteIn) internal {
+        vm.startPrank(buyer);
+        usdc.approve(address(coin), quoteIn);
+        coin.buy(quoteIn, 0, 0, buyer);
+        vm.stopPrank();
+    }
+}
+
+contract WavefrontTest is WavefrontFixture {
     function test_createCoin_registersInCore() public {
         Coin coin = _createCoin(creator, 1000 * ONE_USDC);
         assertEq(core.index(), 1);
@@ -67,27 +78,27 @@ contract WavefrontTest is Test {
         assertEq(coin.team(), creator);
     }
 
-    function test_buy_splitsFees_provider_team_treasury_heal() public {
+    function test_buy_splitsFees_team_treasury_heal() public {
         Coin coin = _createCoin(creator, 1000 * ONE_USDC);
 
         uint256 buyAmt = 1000 * ONE_USDC;
-        uint256 feePool = (buyAmt * 100) / 10_000; // 1% of trade
+        uint256 feePool = (buyAmt * 200) / 10_000; // 2% of trade
         uint256 perRecipient = (feePool * 2_000) / 10_000; // 20% of fee pool
 
         uint256 teamBefore = usdc.balanceOf(creator);
-        uint256 affiliateBefore = usdc.balanceOf(affiliate);
         uint256 treasuryBefore = usdc.balanceOf(treasury);
-        uint256 virtBefore = coin.reserveVirtQuoteWad();
+        uint256 coinBefore = usdc.balanceOf(address(coin));
 
         vm.startPrank(alice);
         usdc.approve(address(coin), buyAmt);
-        coin.buy(buyAmt, 0, 0, alice, affiliate);
+        coin.buy(buyAmt, 0, 0, alice);
         vm.stopPrank();
 
+        assertEq(feePool, 20 * ONE_USDC);
         assertEq(usdc.balanceOf(creator) - teamBefore, perRecipient);
-        assertEq(usdc.balanceOf(affiliate) - affiliateBefore, perRecipient);
         assertEq(usdc.balanceOf(treasury) - treasuryBefore, perRecipient);
-        assertGt(coin.reserveVirtQuoteWad(), virtBefore);
+        // the other 60% of the fee is healed, so it stays in the coin alongside the net trade
+        assertEq(usdc.balanceOf(address(coin)) - coinBefore, buyAmt - 2 * perRecipient);
     }
 
     function test_buy_revertsOnMinTradeSize() public {
@@ -96,7 +107,7 @@ contract WavefrontTest is Test {
         vm.startPrank(alice);
         usdc.approve(address(coin), 999);
         vm.expectRevert(Coin.Coin__MinTradeSize.selector);
-        coin.buy(999, 0, 0, alice, address(0));
+        coin.buy(999, 0, 0, alice);
         vm.stopPrank();
     }
 
@@ -109,23 +120,8 @@ contract WavefrontTest is Test {
         vm.startPrank(alice);
         usdc.approve(address(coin), 100 * ONE_USDC);
         vm.expectRevert(Coin.Coin__Expired.selector);
-        coin.buy(100 * ONE_USDC, 0, block.timestamp - 1, alice, address(0));
+        coin.buy(100 * ONE_USDC, 0, block.timestamp - 1, alice);
         vm.stopPrank();
-    }
-
-    function test_sell_burnsCoinsAndTransfersQuote() public {
-        Coin coin = _createCoin(creator, 1000 * ONE_USDC);
-
-        vm.startPrank(alice);
-        usdc.approve(address(coin), 1000 * ONE_USDC);
-        coin.buy(1000 * ONE_USDC, 0, 0, alice, address(0));
-        uint256 coinBalance = coin.balanceOf(alice);
-        uint256 usdcBefore = usdc.balanceOf(alice);
-        coin.sell(coinBalance, 0, 0, alice, address(0));
-        vm.stopPrank();
-
-        assertEq(coin.balanceOf(alice), 0);
-        assertGt(usdc.balanceOf(alice), usdcBefore);
     }
 
     function test_borrow_lockCollateral_repay_unlocks() public {
@@ -133,7 +129,7 @@ contract WavefrontTest is Test {
 
         vm.startPrank(alice);
         usdc.approve(address(coin), 1000 * ONE_USDC);
-        coin.buy(1000 * ONE_USDC, 0, 0, alice, address(0));
+        coin.buy(1000 * ONE_USDC, 0, 0, alice);
 
         uint256 credit = coin.getAccountCredit(alice);
         coin.borrow(alice, credit);
@@ -172,7 +168,7 @@ contract WavefrontTest is Test {
 
         vm.startPrank(alice);
         usdc.approve(address(coin), 1000 * ONE_USDC);
-        coin.buy(1000 * ONE_USDC, 0, 0, alice, address(0));
+        coin.buy(1000 * ONE_USDC, 0, 0, alice);
 
         uint256 balance = coin.balanceOf(alice);
         uint256 maxBefore = coin.maxSupply();
@@ -195,7 +191,7 @@ contract WavefrontTest is Test {
 
         vm.startPrank(alice);
         usdc.approve(address(coin), 1000 * ONE_USDC);
-        coin.buy(1000 * ONE_USDC, 0, 0, alice, address(0));
+        coin.buy(1000 * ONE_USDC, 0, 0, alice);
         vm.stopPrank();
 
         assertGt(coin.reserveVirtQuoteWad(), virtBefore);
@@ -218,35 +214,12 @@ contract WavefrontTest is Test {
 
         vm.startPrank(alice);
         usdc.approve(address(coin), buyAmt);
-        coin.buy(buyAmt, 0, 0, alice, address(0));
+        coin.buy(buyAmt, 0, 0, alice);
         vm.stopPrank();
 
-        uint256 feePool = (buyAmt * 100) / 10_000;
+        uint256 feePool = (buyAmt * 200) / 10_000;
         uint256 perRecipient = (feePool * 2_000) / 10_000;
         assertEq(usdc.balanceOf(bob) - bobBefore, perRecipient);
-    }
-
-    function test_router_buy_routesAffiliateFromMapping() public {
-        Coin coin = _createCoin(creator, 1000 * ONE_USDC);
-
-        // First buy seeds affiliate
-        vm.startPrank(alice);
-        usdc.approve(address(router), 10 * ONE_USDC);
-        router.buy(address(coin), affiliate, 10 * ONE_USDC, 0, 0);
-        vm.stopPrank();
-
-        assertEq(router.account_Affiliate(alice), affiliate);
-
-        // Second buy: explicit affiliate=0 but mapping should still pay affiliate
-        uint256 affiliateBefore = usdc.balanceOf(affiliate);
-        vm.startPrank(alice);
-        usdc.approve(address(router), 1000 * ONE_USDC);
-        router.buy(address(coin), address(0), 1000 * ONE_USDC, 0, 0);
-        vm.stopPrank();
-
-        uint256 feePool = (1000 * ONE_USDC * 100) / 10_000;
-        uint256 perRecipient = (feePool * 2_000) / 10_000;
-        assertEq(usdc.balanceOf(affiliate) - affiliateBefore, perRecipient);
     }
 
     function test_multicall_getCoinData() public {
@@ -275,5 +248,42 @@ contract WavefrontTest is Test {
         vm.expectRevert(Core.Core__InsufficientCoreAmtRequired.selector);
         core.create("Wave", "WAVE", creator, 1000 * ONE_USDC, 0);
         vm.stopPrank();
+    }
+}
+
+contract WavefrontSellTest is WavefrontFixture {
+    function test_sell_burnsCoinsAndTransfersQuote() public {
+        Coin coin = _createCoin(creator, 1000 * ONE_USDC);
+        _buy(coin, alice, 1000 * ONE_USDC);
+
+        uint256 coinBalance = coin.balanceOf(alice);
+        uint256 usdcBefore = usdc.balanceOf(alice);
+        vm.prank(alice);
+        coin.sell(coinBalance, 0, 0, alice);
+
+        assertEq(coin.balanceOf(alice), 0);
+        assertGt(usdc.balanceOf(alice), usdcBefore);
+    }
+
+    function test_router_buyThenSell_roundTrip() public {
+        Coin coin = _createCoin(creator, 1000 * ONE_USDC);
+
+        vm.startPrank(alice);
+        usdc.approve(address(router), 1000 * ONE_USDC);
+        router.buy(address(coin), 1000 * ONE_USDC, 0, 0);
+        uint256 bought = coin.balanceOf(alice);
+        assertGt(bought, 0);
+
+        uint256 usdcBefore = usdc.balanceOf(alice);
+        coin.approve(address(router), bought);
+        router.sell(address(coin), bought, 0, 0);
+        vm.stopPrank();
+
+        assertEq(coin.balanceOf(alice), 0);
+        // a round trip pays the 2% fee twice, so less than the 1,000 USDC comes back
+        uint256 received = usdc.balanceOf(alice) - usdcBefore;
+        assertLt(received, 1000 * ONE_USDC);
+        assertGt(received, 950 * ONE_USDC);
+        assertEq(usdc.balanceOf(address(router)), 0);
     }
 }

@@ -5,7 +5,6 @@ import {
   Coin__BurnReserves,
   Coin__Heal,
   Coin__HealReserves,
-  Coin__ProviderFee,
   Coin__Repay,
   Coin__Swap,
   Coin__SyncReserves,
@@ -53,8 +52,6 @@ function loadOrCreatePosition(coinAddress: Address, userAddress: Address): CoinP
     position.user = userAddress.toHexString();
     position.balance = ZERO_BD;
     position.debt = ZERO_BD;
-    position.affiliateRevenueQuote = ZERO_BD;
-    position.affiliateRevenueCoin = ZERO_BD;
   }
   return position;
 }
@@ -185,20 +182,6 @@ export function handleCoin__BurnReserves(event: Coin__BurnReserves): void {
     convertTokenToDecimal(event.params.coinAmt, BI_18)
   );
   coin.save();
-}
-
-export function handleCoin__ProviderFee(event: Coin__ProviderFee): void {
-  let user = loadOrCreateUser(event.params.to.toHexString());
-  user.save();
-
-  let position = loadOrCreatePosition(event.address, event.params.to);
-  position.affiliateRevenueQuote = position.affiliateRevenueQuote.plus(
-    convertTokenToDecimal(event.params.quoteRaw, BI_6)
-  );
-  position.affiliateRevenueCoin = position.affiliateRevenueCoin.plus(
-    convertTokenToDecimal(event.params.coinAmt, BI_18)
-  );
-  position.save();
 }
 
 export function handleCoin__TeamFee(event: Coin__TeamFee): void {

@@ -56,7 +56,7 @@ contract Core is Ownable {
         IERC20(quote).safeTransferFrom(msg.sender, address(this), quoteRawIn);
         IERC20(quote).safeApprove(coin, 0);
         IERC20(quote).safeApprove(coin, quoteRawIn);
-        ICoin(coin).buy(quoteRawIn, 0, 0, address(this), address(0));
+        ICoin(coin).buy(quoteRawIn, 0, 0, address(this));
         IERC20(coin).safeTransfer(owner, IERC20(coin).balanceOf(address(this)) - coreCoinAmtRequired);
 
         emit Core__CoinCreated(name, symbol, index, coin, owner);

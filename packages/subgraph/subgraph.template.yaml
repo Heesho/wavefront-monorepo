@@ -60,8 +60,6 @@ templates:
           handler: handleCoin__HealReserves
         - event: Coin__BurnReserves(uint256,uint256)
           handler: handleCoin__BurnReserves
-        - event: Coin__ProviderFee(indexed address,uint256,uint256)
-          handler: handleCoin__ProviderFee
         - event: Coin__TeamFee(indexed address,uint256,uint256)
           handler: handleCoin__TeamFee
         - event: Coin__TreasuryFee(indexed address,uint256,uint256)
