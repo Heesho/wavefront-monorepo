@@ -10,7 +10,11 @@ via_ir = true
 optimizer = true
 optimizer_runs = 200
 # The v1 contracts are the reference oracle: tests deploy them from packages/foundry's build output.
-fs_permissions = [{ access = "read", path = "../foundry/out" }]
+fs_permissions = [
+    { access = "read", path = "../foundry/out" },
+    # the deploy script records the addresses it deployed
+    { access = "read-write", path = "./deployments" },
+]
 remappings = [
     "forge-std/=lib/forge-std/src/",
     "@uniswap/v4-core/=node_modules/@uniswap/v4-core/",
@@ -42,3 +46,9 @@ runs = 10000
 [profile.ci.invariant]
 runs = 1000
 depth = 100
+
+# Long-lived markets: fewer runs, each a thousand actions deep.
+[profile.deep.invariant]
+runs = 100
+depth = 1000
+

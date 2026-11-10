@@ -83,9 +83,14 @@ yarn workspace @wavefront/v4 lint
 Heavier runs:
 
 ```bash
-FOUNDRY_PROFILE=ci forge test          # 10,000 fuzz runs per test, 100,000 calls per invariant
+yarn workspace @wavefront/v4 test:ci   # 10,000 fuzz runs per test, 100,000 calls per invariant
+yarn workspace @wavefront/v4 test:deep # invariants only, each run a thousand actions long
 yarn workspace @wavefront/v4 test:fork # against Uniswap's live contracts on a fork of Base
+yarn workspace @wavefront/v4 slither   # needs `pip install slither-analyzer`
 ```
+
+`.github/workflows/ci.yml` runs the v1 suites, formatting, lint, the contract size check, `test:ci`
+and Slither on every pull request, and the fork tests on pushes to `main`.
 
 ## Tests
 
@@ -96,16 +101,73 @@ yarn workspace @wavefront/v4 test:fork # against Uniswap's live contracts on a f
 - `test/WavefrontHook.t.sol`: launch, trading, fees, heal, burn, lending and access control, with v1
   parity wherever v1 has an equivalent.
 - `test/LongPath.t.sol`: 400 random trades on v1 and v4 side by side, then everyone exits.
+- `test/TokenShapes.t.sol`: quote tokens that are not textbook ERC20s (see "Quote tokens" below).
 - `test/invariant/`: a handler drives random buys, sells, borrows, repays, heals, burns, transfers, fee
-  claims and recipient toggles by five actors across two coins (a 6-decimal and an 18-decimal quote).
-  After every call the suite checks that the floor never falls, sits on a tick and is v1's floor for
-  the market's reserves rounded down to that tick, the hook's claims equal exactly what it accounts for,
-  debt is covered by the range below the position, borrowers hold their collateral, and every unlocked
-  coin can be absorbed by the pool. After every run all debts are repaid and every holder sells out.
+  claims and recipient toggles by five actors. After every call the suite checks that the floor never
+  falls, sits on a tick and is v1's floor for the market's reserves rounded down to that tick, the
+  hook's claims equal exactly what it accounts for, debt is covered by the range below the position,
+  borrowers hold their collateral, every unlocked coin can be absorbed by the pool, and no action that
+  must always work (buying, repaying, donating, claiming, launching) ever reverted. After every run all
+  debts are repaid and every holder sells out. It runs in three configurations:
+  - v1's own launch parameters against a 6-decimal quote, and a deeper coin against an 18-decimal one;
+  - the edges of what a launch allows: 2- and 8-decimal quotes, a thousand-coin supply priced above its
+    quote, a quadrillion-coin supply, and the smallest curve permitted;
+  - runs that launch their own coins mid-run, with supply and curve depth drawn from the whole
+    permitted range against quotes of 2, 6, 8 and 18 decimals.
 - `test/invariant/Regression.t.sol`: sequences the invariant suite once broke, kept as fixed tests.
-- `test/fork/BaseFork.t.sol`: the hook deployed on a fork of Base against the live `PoolManager` and real
-  USDC, traded through Uniswap's own Universal Router and checked against Uniswap's own Quoter. Skipped
-  unless `BASE_RPC_URL` is set.
+- `test/fork/`: on a fork of Base against the live `PoolManager` and real USDC. `BaseFork.t.sol` trades
+  through Uniswap's own Universal Router and checks against Uniswap's own Quoter;
+  `DeployScript.t.sol` runs the deploy script and trades on what it deployed. Skipped unless
+  `BASE_RPC_URL` is set.
+
+## Quote tokens
+
+Any standard ERC20 works, including ones whose transfer functions return nothing (USDT on mainnet).
+
+- **Fee-on-transfer tokens are not supported and fail safely.** A coin can be launched against one, but
+  every action that would move the token reverts, so nothing can be lost or stuck.
+- **Tokens that call the sender or recipient back mid-transfer (ERC-777 style)** get no opening: the
+  hook's entry points cannot be re-entered, swaps never move the quote token inside the hook, and the
+  one place a payment is pulled before state is settled (`repay`) writes the debt down only after the
+  payment has arrived.
+- **Rebasing tokens are not supported.** The PoolManager holds the balances, and v4 itself does not
+  account for balances that change on their own.
+
+## Static analysis
+
+Slither runs clean with the configuration in `slither.config.json`. What it excludes, and why:
+
+| Finding | Why it is accepted |
+|---|---|
+| `reentrancy-*` (29) | Every flagged call goes to the PoolManager or the hook's own coin. User entry points are `nonReentrant`, and the only calls into untrusted code (quote token transfers) come after state is settled; `test/TokenShapes.t.sol` checks this with a token that calls back mid-transfer. |
+| `unused-return` (18) | PoolManager return values the hook reads back from its own deltas instead. |
+| `arbitrary-send-erc20` (2, annotated inline) | The payer is always the caller of the action that opened the unlock. |
+| `uninitialized-local` (2) | Memory structs that are meant to start zeroed. |
+| `missing-zero-check` (4) | A zero team or treasury is how those fees are switched off. |
+| `divide-before-multiply` (1, annotated inline) | Counting ticks: the division is exact. |
+| `timestamp`, `too-many-digits` | The router's deadline; a false positive on creation code. |
+
+Triaging the reentrancy reports by hand did find one real ordering issue, in `repay`, which is fixed
+and tested.
+
+## Deploying
+
+`script/Deploy.s.sol` deploys the coin deployer, the hook (at an address mined so that its low bits
+encode its permissions, through the canonical CREATE2 deployer), the router and the lens.
+`script/Launch.s.sol` launches a coin with the broadcaster's first buy. Both document their environment
+variables at the top of the file.
+
+```bash
+# dry run: simulates against the chain and sends nothing
+HOOK_OWNER=0x... forge script script/Deploy.s.sol --rpc-url $BASE_RPC_URL
+
+# for real, signing with a key in Foundry's encrypted keystore (cast wallet import <name> --interactive)
+HOOK_OWNER=0x... forge script script/Deploy.s.sol --rpc-url $BASE_RPC_URL --account <name> --broadcast
+```
+
+A real run records the addresses in `deployments/<chain id>.json`. Deploying costs about 14M gas.
+**The contracts are unaudited: anything deployed is permissionless and immutable, so treat a
+deployment as an experiment with money you can afford to lose.**
 
 ## Design rules
 
@@ -117,7 +179,7 @@ yarn workspace @wavefront/v4 test:fork # against Uniswap's live contracts on a f
 ## Not yet in place
 
 - External audit. Uniswap's hook Security Framework requires a maths-specialist audit for this design.
-- Hook address mining and deploy scripts.
-- Slither and CI.
+- A live deployment. The scripts are tested on a fork; nothing has been sent to a chain, so how
+  scanners display these pools is still unverified.
 - Subgraph for the v4 events.
 - Complete NatSpec tags (the linter reports about 100 missing `@param` / `@return` tags).

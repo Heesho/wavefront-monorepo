@@ -8,9 +8,12 @@
     "build": "forge build",
     "build:reference": "forge build --root ../foundry",
     "test": "yarn build:reference && forge test",
+    "test:ci": "yarn build:reference && FOUNDRY_PROFILE=ci forge test --no-match-contract BaseForkTest",
+    "test:deep": "FOUNDRY_PROFILE=deep forge test --match-path 'test/invariant/*.invariant.t.sol'",
     "fmt": "forge fmt",
     "fmt:check": "forge fmt --check",
     "lint": "solhint 'src/**/*.sol'",
+    "slither": "slither . --fail-low",
     "coverage": "yarn build:reference && forge coverage",
     "test:fork": "BASE_RPC_URL=${BASE_RPC_URL:-https://mainnet.base.org} forge test --match-contract BaseForkTest"
   },
