@@ -132,6 +132,8 @@ contract WavefrontRouter is IUnlockCallback {
         uint256 received = uint256(uint128(zeroForOne ? delta.amount1() : delta.amount0()));
 
         poolManager.sync(currencyIn);
+        // `payer` is always the caller of the buy or sell that started this unlock
+        // slither-disable-next-line arbitrary-send-erc20
         IERC20(Currency.unwrap(currencyIn)).safeTransferFrom(payer, address(poolManager), paid);
         poolManager.settle();
         poolManager.take(currencyOut, payer, received);

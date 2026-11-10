@@ -1,0 +1,5 @@
+{
+  "filter_paths": "node_modules|lib/|test/|script/",
+  "detectors_to_exclude": "reentrancy-no-eth,reentrancy-benign,reentrancy-events,unused-return,uninitialized-local,missing-zero-check,timestamp,too-many-digits",
+  "compile_force_framework": "foundry"
+}

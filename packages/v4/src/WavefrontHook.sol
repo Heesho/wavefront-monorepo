@@ -140,6 +140,7 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
         sqrtMaxX96 = TickMath.getSqrtPriceAtTick(maxTick);
         sqrtPriceCapX96 = TickMath.getSqrtPriceAtTick(maxTick - PRICE_HEADROOM_TICKS);
         // v4 spreads uint128 liquidity evenly over the usable ticks (see Pool.tickSpacingToMaxLiquidityPerTick)
+        // slither-disable-next-line divide-before-multiply
         maxLiquidity = type(uint128).max / uint128(uint24(2 * (maxTick / tickSpacing_) + 1)) / 2;
     }
 
@@ -202,11 +203,12 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
     /// @inheritdoc IWavefrontHook
     function repay(address coin, address account, uint256 quoteAmount) external nonReentrant {
         if (quoteAmount == 0) revert ZeroAmount();
-        Market storage m = _market(coin);
-        debtOf[coin][account] -= quoteAmount;
-        m.totalDebt -= quoteAmount;
+        _market(coin);
 
+        // The debt is written down only once the payment has arrived: a quote token that calls the
+        // payer back mid-transfer must not find a market that already counts money it does not hold.
         poolManager.unlock(abi.encode(Action.REPAY, coin, msg.sender, quoteAmount));
+        debtOf[coin][account] -= quoteAmount;
         emit Repaid(coin, account, msg.sender, quoteAmount);
     }
 
@@ -270,6 +272,7 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
             _payOut(key.currency1, account, amount);
         } else if (action == Action.REPAY) {
             _payIn(key.currency1, account, amount);
+            m.totalDebt -= amount;
             m.idleQuote += amount;
             _rebalance(m, key, 0);
         } else {
@@ -458,17 +461,17 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
         uint256 circulating = c.circulating;
         if (circulating <= MIN_CIRCULATING || coins == 0) return 0;
 
-        uint256 burn = m.pendingBurn;
-        if (burn > circulating - MIN_CIRCULATING) burn = circulating - MIN_CIRCULATING;
-        // a burn scales liquidity by sqrt(1 - burn / circulating); it may not thin the position to nothing
+        uint256 burned = m.pendingBurn;
+        if (burned > circulating - MIN_CIRCULATING) burned = circulating - MIN_CIRCULATING;
+        // a burn scales liquidity by sqrt(1 - burned / circulating); it may not thin the position to nothing
         uint256 liquidity = m.liquidity;
         if (
-            FullMath.mulDiv(liquidity * liquidity, circulating - burn, circulating)
+            FullMath.mulDiv(liquidity * liquidity, circulating - burned, circulating)
                 < uint256(MIN_LIQUIDITY) * MIN_LIQUIDITY
-        ) burn = 0;
-        if (burn != 0) {
-            coins -= FullMath.mulDiv(coins, burn, circulating);
-            circulating -= burn;
+        ) burned = 0;
+        if (burned != 0) {
+            coins -= FullMath.mulDiv(coins, burned, circulating);
+            circulating -= burned;
         }
         uint256 quote = c.quote + m.pendingHeal;
         if (quote > type(uint128).max) return 0;
@@ -485,7 +488,7 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
         c.coins = coins;
         c.circulating = circulating;
         c.healed = m.pendingHeal;
-        c.burned = burn;
+        c.burned = burned;
     }
 
     /// @dev Destroys coins set aside by an earlier rebalance. They are physically in the PoolManager by
@@ -579,6 +582,8 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
     /// @dev Pulls `amount` from `payer` into the PoolManager and holds it as claims.
     function _payIn(Currency currency, address payer, uint256 amount) internal {
         poolManager.sync(currency);
+        // `payer` is always the caller of the user action that started this unlock
+        // slither-disable-next-line arbitrary-send-erc20
         IERC20(Currency.unwrap(currency)).safeTransferFrom(payer, address(poolManager), amount);
         poolManager.settle();
         poolManager.mint(address(this), currency.toId(), amount);
