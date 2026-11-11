@@ -113,6 +113,10 @@ and Slither on every pull request, and the fork tests on pushes to `main`.
   parity wherever v1 has an equivalent.
 - `test/LongPath.t.sol`: 400 random trades on v1 and v4 side by side, then everyone exits.
 - `test/TokenShapes.t.sol`: quote tokens that are not textbook ERC20s (see "Quote tokens" below).
+- `test/DirectPoolManager.t.sol`: what someone can do by talking to the PoolManager themselves instead
+  of going through a router. Exact-output swaps, arbitrary price limits and several swaps before any
+  is paid for must leave the hook's books balanced; a credit settled in the hook's name must not be
+  booked by it.
 - `test/sim/PoolComparison.t.sol`: not a test but a simulation. The same traders make the same trades
   on a wavefront coin and on an ordinary v4 pool of the same price and depth, at each fee level, and the
   results are printed side by side (`forge test --match-contract PoolComparisonSim -vv`).
@@ -139,13 +143,45 @@ and Slither on every pull request, and the fork tests on pushes to `main`.
 Any standard ERC20 works, including ones whose transfer functions return nothing (USDT on mainnet).
 
 - **Fee-on-transfer tokens are not supported and fail safely.** A coin can be launched against one, but
-  every action that would move the token reverts, so nothing can be lost or stuck.
-- **Tokens that call the sender or recipient back mid-transfer (ERC-777 style)** get no opening: the
-  hook's entry points cannot be re-entered, swaps never move the quote token inside the hook, and the
-  one place a payment is pulled before state is settled (`repay`) writes the debt down only after the
-  payment has arrived.
+  an ordinary buy reverts, and so does any repayment or donation: the hook checks that the PoolManager
+  was credited exactly what the payer was asked for (`PaymentNotReceived`). Someone who pays the pool
+  extra to cover the token's cut can still buy and borrow, but a debt in such a token cannot be
+  repaid, so do not use one.
+- **Tokens that call the sender or recipient back mid-transfer (ERC-777 style)** get no opening. The
+  hook's entry points cannot be re-entered, and swaps never move the quote token inside the hook.
+  While the hook collects a payment the PoolManager is unlocked and open to the payer, who could
+  otherwise claim their own payment back or strand it there; the same check refuses both, and `repay`
+  writes the debt down only after the payment has been credited.
 - **Rebasing tokens are not supported.** The PoolManager holds the balances, and v4 itself does not
   account for balances that change on their own.
+
+## Known limits
+
+Found in review and left as they are; none lets anyone take another holder's money.
+
+- **A sell with nothing below it is expensive.** When the price sits exactly on the bottom of the
+  position (a coin nobody has bought yet, or one where only locked coins remain), a sell fills
+  nothing, but the swap runs the price through the empty range and the hook brings it back: 2M to 4M
+  gas for the seller at a tick spacing of 10. Nobody can push that cost onto someone else. A tick
+  spacing of 1 would multiply it by ten, so do not deploy with one.
+- **Swap events can look odd to an indexer.** Every rebalance that moves the price emits a
+  zero-amount `Swap` from the hook, and the sell above emits one whose price is the swap's limit
+  (near zero) before the corrective one. A chart built from raw swap prices could show a wick.
+- **Fees waiting for holders go to whoever becomes one.** While holders have under 0.1% of the supply,
+  heals and burns wait. They are applied by the swap that takes holders over 0.1%, and that buyer can
+  sell again in the same transaction, so the waiting amount can be collected without capital. A
+  holder with less than 0.1% shares it pro rata instead of receiving all of it. Unclaimed team and
+  treasury fee coins count as held.
+- **A creator can shrink their own market.** Buying nearly the whole supply and burning it repeatedly
+  takes a coin down to `MIN_LIQUIDITY`, far below what a launch allows, where a raw unit of rounding
+  moves the price. It takes the creator's own money and is visible on chain; coins quoted in a
+  6-decimal token are not affected at any realistic size.
+- **A router that calls `sync` on the coin before it swaps** can have a sell revert, because the hook
+  redeems coins queued for burning inside the swap. Uniswap's routers sync when they pay, after the
+  swap.
+- **`Launched` reports the owner the launcher named**, which need not be the launcher. An indexer that
+  wants the creator should use the transaction's sender.
+- **Tokens sent straight to the hook, the router or the PoolManager are lost.** There is no sweep.
 
 ## Static analysis
 
@@ -193,6 +229,8 @@ deployment as an experiment with money you can afford to lose.**
 ## Not yet in place
 
 - External audit. Uniswap's hook Security Framework requires a maths-specialist audit for this design.
+  An internal review (three independent reads; what it found and fixed is covered by tests) has been
+  done; it is not a substitute.
 - A live deployment. The scripts are tested on a fork; nothing has been sent to a chain, so how
   scanners display these pools is still unverified.
 - Subgraph for the v4 events.
