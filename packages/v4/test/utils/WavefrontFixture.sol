@@ -22,6 +22,8 @@ abstract contract WavefrontFixture is V1Fixture {
     /// @dev v1's launch constants, so that v4 coins launched with the defaults are comparable to v1 coins.
     uint256 internal constant VIRTUAL_QUOTE = 100_000e6;
     uint256 internal constant COIN_SUPPLY = 1_000_000_000e18;
+    /// @dev v1's fee: 2%, in v4's hundredths of a bip.
+    uint24 internal constant DEFAULT_FEE = 20_000;
 
     /// @dev v4 keeps the floor on a tick and moves it in whole steps of TICK_SPACING ticks (0.1% of
     ///      price), where v1 moves it continuously. The two therefore agree to within a step for the
@@ -72,6 +74,7 @@ abstract contract WavefrontFixture is V1Fixture {
             team: launcher,
             supply: COIN_SUPPLY,
             virtualQuote: VIRTUAL_QUOTE,
+            fee: DEFAULT_FEE,
             salt: bytes32(0)
         });
     }

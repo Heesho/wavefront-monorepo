@@ -187,6 +187,78 @@ contract WavefrontHookTest is WavefrontFixture {
         hook.launch(params);
     }
 
+    function test_launch_feeMustBeBetweenOneAndFivePercent() public {
+        IWavefrontHook.LaunchParams memory params = _defaultParams(creator);
+        params.fee = hook.MIN_FEE() - 1;
+        vm.expectRevert(IWavefrontHook.InvalidLaunchParams.selector);
+        hook.launch(params);
+
+        params.fee = hook.MAX_FEE() + 1;
+        vm.expectRevert(IWavefrontHook.InvalidLaunchParams.selector);
+        hook.launch(params);
+
+        // v4 marks a dynamic-fee pool with this value; a coin's fee is fixed, so it is refused too
+        params.fee = 0x800000;
+        vm.expectRevert(IWavefrontHook.InvalidLaunchParams.selector);
+        hook.launch(params);
+
+        params.fee = hook.MIN_FEE();
+        (Coin cheap,) = _launchWith(creator, params, 0);
+        params.fee = hook.MAX_FEE();
+        (Coin dear,) = _launchWith(creator, params, 0);
+        assertEq(hook.poolKey(address(cheap)).fee, 10_000);
+        assertEq(hook.poolKey(address(dear)).fee, 50_000);
+        assertEq(_market(cheap).fee, 10_000);
+        assertEq(lens.getCoinData(address(dear), address(0)).fee, 50_000);
+    }
+
+    /// @notice Whatever fee a coin launches with is what a trade pays, split a fifth to the team, a
+    ///         fifth to the treasury and the rest to the floor, on buys and on sells.
+    function testFuzz_fees_chosenAtLaunch_areChargedAndSplit(uint24 fee, uint256 buyIn) public {
+        fee = uint24(bound(fee, hook.MIN_FEE(), hook.MAX_FEE()));
+        buyIn = bound(buyIn, 1000 * ONE_USDC, 500_000 * ONE_USDC);
+        IWavefrontHook.LaunchParams memory params = _defaultParams(creator);
+        params.fee = fee;
+        (Coin coin,) = _launchWith(creator, params, 0);
+        int24 launchFloor = _market(coin).floorTick;
+
+        uint256 bought = _buy(coin, alice, buyIn);
+        uint256 quoteFee = (buyIn * fee) / 1e6;
+        assertApproxEqAbs(hook.feesOwed(address(quote), creator), quoteFee / 5, 2, "team share of a buy");
+        assertApproxEqAbs(hook.feesOwed(address(quote), treasury), quoteFee / 5, 2, "treasury share of a buy");
+        // the rest went to the curve and lifted the floor
+        assertGt(_market(coin).floorTick, launchFloor, "the floor's share of a buy");
+
+        uint256 sold = bought / 2;
+        _sell(coin, alice, sold);
+        uint256 coinFee = (sold * fee) / 1e6;
+        assertApproxEqRel(hook.feesOwed(address(coin), creator), coinFee / 5, 1e12, "team share of a sell");
+        assertApproxEqRel(hook.feesOwed(address(coin), treasury), coinFee / 5, 1e12, "treasury share of a sell");
+    }
+
+    /// @notice A lower fee leaves a trader more, coin for coin: the same buy and sell on a 1% coin and
+    ///         a 5% coin.
+    function test_fees_lowerFeeCostsTheTraderLess() public {
+        IWavefrontHook.LaunchParams memory params = _defaultParams(creator);
+        params.fee = 10_000;
+        (Coin cheap,) = _launchWith(creator, params, 0);
+        params.fee = 50_000;
+        (Coin dear,) = _launchWith(creator, params, 0);
+
+        uint256 cheapCoins = _buy(cheap, alice, 10_000 * ONE_USDC);
+        uint256 dearCoins = _buy(dear, alice, 10_000 * ONE_USDC);
+        assertGt(cheapCoins, dearCoins, "1% buys more coins than 5%");
+        uint256 cheapBack = _sell(cheap, alice, cheapCoins);
+        uint256 dearBack = _sell(dear, alice, dearCoins);
+        assertGt(cheapBack, dearBack, "and returns more on the way out");
+        // a sole trader gets the floor's share of their own fees back: the round trip costs less than
+        // twice the fee
+        assertGt(cheapBack, (10_000 * ONE_USDC * 98) / 100);
+        assertGt(dearBack, (10_000 * ONE_USDC * 90) / 100);
+        // and the dearer coin's floor rose further
+        assertGt(_market(dear).floorTick, _market(cheap).floorTick);
+    }
+
     function test_launch_anyStandardErc20CanBeTheQuote() public {
         MockQuote weth = new MockQuote("Wrapped Ether", "WETH", 18);
         IWavefrontHook.LaunchParams memory params = _defaultParams(creator);

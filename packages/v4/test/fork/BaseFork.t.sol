@@ -88,6 +88,7 @@ contract BaseForkTest is Test {
             team: creator,
             supply: 1_000_000_000e18,
             virtualQuote: 100_000 * ONE_USDC,
+            fee: 20_000,
             salt: bytes32(0)
         });
         for (uint256 i;; ++i) {

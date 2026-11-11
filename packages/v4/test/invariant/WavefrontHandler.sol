@@ -79,8 +79,10 @@ contract WavefrontHandler is Test {
                                   ACTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Launches a new coin with a random supply and curve depth against a random quote token.
-    function launch(uint256 quoteSeed, uint256 supplySeed, uint256 virtualSeed, uint256 saltSeed) external {
+    /// @notice Launches a new coin with a random supply, curve depth and fee against a random quote token.
+    function launch(uint256 quoteSeed, uint256 supplySeed, uint256 virtualSeed, uint256 feeSeed, uint256 saltSeed)
+        external
+    {
         if (launchQuotes.length == 0 || coins.length >= MAX_COINS) return;
         calls["launch"]++;
         MockQuote quote = launchQuotes[quoteSeed % launchQuotes.length];
@@ -94,6 +96,7 @@ contract WavefrontHandler is Test {
             // every combination below is inside the hook's launch bounds
             supply: _logUniform(supplySeed, 21, 33),
             virtualQuote: _logUniform(virtualSeed, 6, 30),
+            fee: uint24(bound(feeSeed, 10_000, 50_000)),
             salt: bytes32(0)
         });
         // The coin must sort below its quote; try salts the way a front end would. A salt is never
