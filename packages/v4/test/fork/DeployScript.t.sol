@@ -51,6 +51,7 @@ contract BaseForkTestDeployScript is Test {
             team: creator,
             supply: 1_000_000_000e18,
             virtualQuote: 100_000e6,
+            fee: 20_000,
             salt: bytes32(0)
         });
         params.salt = new Launch().findSalt(d.router, creator, params);

@@ -34,7 +34,8 @@ import {TickRounding} from "./libraries/TickRounding.sol";
 ///      liquidity is a single position owned by this hook, from the coin's floor price to the top of the
 ///      tick range; that position is the wavefront curve (see {CurveMath}).
 ///
-///      - Buys and sells are ordinary v4 swaps through any router, paying the pool's LP fee.
+///      - Buys and sells are ordinary v4 swaps through any router, paying the pool's LP fee, which the
+///        coin's creator fixes at launch.
 ///      - After every swap the hook collects the fee and credits the team and treasury shares. The rest
 ///        waits as pending heal (quote) or pending burn (coin).
 ///      - The hook tracks v1's own three numbers: the real quote backing the curve, the coins in the
@@ -58,8 +59,10 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
     using StateLibrary for IPoolManager;
     using TransientStateLibrary for IPoolManager;
 
-    /// @notice LP fee of every pool, in hundredths of a bip (2%).
-    uint24 public constant LP_FEE = 20_000;
+    /// @notice Lowest trade fee a coin may launch with, in hundredths of a bip (1%).
+    uint24 public constant MIN_FEE = 10_000;
+    /// @notice Highest trade fee a coin may launch with, in hundredths of a bip (5%).
+    uint24 public constant MAX_FEE = 50_000;
     /// @notice Share of each trade fee paid to the team and, separately, to the treasury (20% each).
     uint256 public constant RECIPIENT_SHARE_BPS = 2000;
     /// @notice Smallest supply a coin may launch with.
@@ -159,6 +162,7 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
         if (
             params.quote == address(0) || params.supply < MIN_SUPPLY || params.supply > type(uint128).max
                 || params.virtualQuote < MIN_VIRTUAL_QUOTE || params.virtualQuote > type(uint128).max
+                || params.fee < MIN_FEE || params.fee > MAX_FEE
         ) revert InvalidLaunchParams();
 
         coin = coinDeployer.deploy(_coinParams(params), _salt(msg.sender, params.salt));
@@ -172,12 +176,13 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
         _coins.push(coin);
         Market storage m = _markets[coin];
         m.quote = params.quote;
+        m.fee = params.fee;
         m.index = _coins.length;
         m.floorTick = floorTick;
         m.lowerTick = floorTick;
         m.sqrtFloorX96 = TickMath.getSqrtPriceAtTick(floorTick);
 
-        poolManager.initialize(_poolKey(coin, params.quote), m.sqrtFloorX96);
+        poolManager.initialize(_poolKey(coin, m), m.sqrtFloorX96);
         poolManager.unlock(abi.encode(Action.LAUNCH, coin, address(0), params.supply));
 
         emit Launched(
@@ -187,6 +192,7 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
             m.index,
             params.supply,
             params.virtualQuote,
+            params.fee,
             params.name,
             params.symbol,
             params.uri
@@ -267,7 +273,7 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
         }
 
         Market storage m = _markets[target];
-        PoolKey memory key = _poolKey(target, m.quote);
+        PoolKey memory key = _poolKey(target, m);
 
         if (action == Action.LAUNCH) {
             _addInitialPosition(m, key, amount);
@@ -632,7 +638,7 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
 
     /// @inheritdoc IWavefrontHook
     function sqrtPriceX96(address coin) external view returns (uint160 sqrtPrice) {
-        (sqrtPrice,,,) = poolManager.getSlot0(_poolKey(coin, _markets[coin].quote).toId());
+        (sqrtPrice,,,) = poolManager.getSlot0(_poolKey(coin, _markets[coin]).toId());
     }
 
     /// @inheritdoc IWavefrontHook
@@ -642,7 +648,7 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
 
     /// @inheritdoc IWavefrontHook
     function poolKey(address coin) external view returns (PoolKey memory) {
-        return _poolKey(coin, _market(coin).quote);
+        return _poolKey(coin, _market(coin));
     }
 
     /// @inheritdoc IWavefrontHook
@@ -683,11 +689,12 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
         return IERC20(Currency.unwrap(coin)).totalSupply() - m.burnQueue;
     }
 
-    function _poolKey(address coin, address quote) internal view returns (PoolKey memory) {
+    /// @dev A coin's one pool: against its quote token, at the fee chosen at launch.
+    function _poolKey(address coin, Market storage m) internal view returns (PoolKey memory) {
         return PoolKey({
             currency0: Currency.wrap(coin),
-            currency1: Currency.wrap(quote),
-            fee: LP_FEE,
+            currency1: Currency.wrap(m.quote),
+            fee: m.fee,
             tickSpacing: tickSpacing,
             hooks: IHooks(address(this))
         });

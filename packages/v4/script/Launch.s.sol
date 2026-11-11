@@ -16,6 +16,8 @@ import {IWavefrontHook} from "../src/interfaces/IWavefrontHook.sol";
 ///        URI            optional  metadata URI
 ///        SUPPLY         optional  raw units; defaults to 1,000,000,000 coins
 ///        VIRTUAL_QUOTE  required  raw quote units; the launch price is VIRTUAL_QUOTE / SUPPLY
+///        FEE            optional  trade fee in hundredths of a bip, 10000 (1%) to 50000 (5%), fixed for
+///                                 good; defaults to 20000 (2%)
 ///        FIRST_BUY      optional  raw quote units the broadcaster spends in the same transaction
 ///
 ///      Dry run, then for real:
@@ -36,6 +38,7 @@ contract Launch is Script {
             team: msg.sender,
             supply: vm.envOr("SUPPLY", uint256(1_000_000_000e18)),
             virtualQuote: vm.envUint("VIRTUAL_QUOTE"),
+            fee: uint24(vm.envOr("FEE", uint256(20_000))),
             salt: bytes32(0)
         });
         params.salt = findSalt(router, msg.sender, params);

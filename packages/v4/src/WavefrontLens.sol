@@ -29,6 +29,7 @@ contract WavefrontLens {
         uint256 index;
         address coin;
         address quote;
+        uint24 fee; // trade fee in hundredths of a bip; 20,000 is 2%
         string name;
         string symbol;
         address owner;
@@ -66,6 +67,7 @@ contract WavefrontLens {
         data.index = m.index;
         data.coin = coin;
         data.quote = m.quote;
+        data.fee = m.fee;
         data.name = IERC20Metadata(coin).name();
         data.symbol = IERC20Metadata(coin).symbol();
         data.owner = Ownable(coin).owner();

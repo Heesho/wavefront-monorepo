@@ -30,6 +30,10 @@ in the same transaction. The creator chooses:
 - `supply` and `virtualQuote`: the launch price is `virtualQuote / supply`, and a larger `virtualQuote`
   means it takes more quote to move the price. At least 1,000 coins of supply and 1,000,000 raw units
   of virtual quote (1 USDC), so that a raw unit of rounding is never more than a millionth of the curve.
+- `fee`: what every trade of the coin pays, from 1% to 5% (`10000` to `50000`; v4 counts fees in
+  hundredths of a basis point). It is fixed for good: nobody can change what holders pay after they
+  buy. A fifth goes to the team, a fifth to the treasury, and the rest raises the floor. A lower fee
+  costs traders less; a higher one lifts the floor faster and pays the team more.
 - `owner` and `team`: the owner controls the URI and team; the team receives the coin's fee share.
 - `salt`: the coin's address must sort below the quote token's, so a front end tries salts with
   `predictCoin` until one does. The address also depends on the caller, so a pending launch cannot be
@@ -49,6 +53,8 @@ the pool's coins put it at (`CurveMath.sqrtPriceFor`). There is no separate heal
 
 ## How it differs from v1
 
+- **The fee is chosen per coin.** v1 charges 2% on every coin. Here the creator picks 1% to 5% at
+  launch; a coin launched at 2% behaves as v1 does.
 - **The floor sits on a tick.** v1's floor can be any price. v4 rounds it down to the nearest tick
   spacing (0.1% of price), so the floor is at most 0.1% under v1's. The quote that rounding leaves over
   (less than 0.1% of what the market holds) waits outside the position as `idleQuote` and is counted
@@ -107,6 +113,9 @@ and Slither on every pull request, and the fork tests on pushes to `main`.
   parity wherever v1 has an equivalent.
 - `test/LongPath.t.sol`: 400 random trades on v1 and v4 side by side, then everyone exits.
 - `test/TokenShapes.t.sol`: quote tokens that are not textbook ERC20s (see "Quote tokens" below).
+- `test/sim/PoolComparison.t.sol`: not a test but a simulation. The same traders make the same trades
+  on a wavefront coin and on an ordinary v4 pool of the same price and depth, at each fee level, and the
+  results are printed side by side (`forge test --match-contract PoolComparisonSim -vv`).
 - `test/invariant/`: a handler drives random buys, sells, borrows, repays, heals, burns, transfers, fee
   claims and recipient toggles by five actors. After every call the suite checks that the floor never
   falls, sits on a tick and is v1's floor for the market's reserves rounded down to that tick, the
@@ -116,8 +125,8 @@ and Slither on every pull request, and the fork tests on pushes to `main`.
   debts are repaid and every holder sells out. It runs in three configurations:
   - v1's own launch parameters against a 6-decimal quote, and a deeper coin against an 18-decimal one;
   - the edges of what a launch allows: 2- and 8-decimal quotes, a thousand-coin supply priced above its
-    quote, a quadrillion-coin supply, and the smallest curve permitted;
-  - runs that launch their own coins mid-run, with supply and curve depth drawn from the whole
+    quote, a quadrillion-coin supply, and the smallest curve permitted, at fees from 1% to 5%;
+  - runs that launch their own coins mid-run, with supply, curve depth and fee drawn from the whole
     permitted range against quotes of 2, 6, 8 and 18 decimals.
 - `test/invariant/Regression.t.sol`: sequences the invariant suite once broke, kept as fixed tests.
 - `test/fork/`: on a fork of Base against the live `PoolManager` and real USDC. `BaseFork.t.sol` trades

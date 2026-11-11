@@ -8,6 +8,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 interface IWavefrontHook {
     /// @notice State of one coin's market.
     /// @param quote The token this coin trades against.
+    /// @param fee Trade fee of the coin's pool, in hundredths of a bip (20,000 is 2%). Fixed at launch.
     /// @param sqrtFloorX96 Floor sqrt price (quote per coin, Q64.96). Always exactly on `floorTick`.
     /// @param floorTick Tick of the floor: a multiple of the tick spacing that only ever moves up.
     /// @param lowerTick Lower tick of the live position. Above `floorTick` while quote is lent out.
@@ -22,6 +23,7 @@ interface IWavefrontHook {
     /// @param index 1-based position in the coin registry; 0 if the coin was not launched here.
     struct Market {
         address quote;
+        uint24 fee;
         uint160 sqrtFloorX96;
         int24 floorTick;
         int24 lowerTick;
@@ -44,6 +46,9 @@ interface IWavefrontHook {
     /// @param supply Total supply of the coin, in raw units.
     /// @param virtualQuote Virtual quote reserve, in raw quote units. The launch price is
     ///        `virtualQuote / supply`, and the larger it is the more quote it takes to move the price.
+    /// @param fee Fee charged on every trade of this coin, in hundredths of a bip: between 10,000 (1%)
+    ///        and 50,000 (5%). It can never be changed. A fifth of it goes to the team, a fifth to the
+    ///        treasury, and the rest raises the floor.
     /// @param salt Caller-chosen salt. The resulting coin address must sort below `quote`.
     struct LaunchParams {
         string name;
@@ -54,6 +59,7 @@ interface IWavefrontHook {
         address team;
         uint256 supply;
         uint256 virtualQuote;
+        uint24 fee;
         bytes32 salt;
     }
 
@@ -65,6 +71,7 @@ interface IWavefrontHook {
         uint256 index,
         uint256 supply,
         uint256 virtualQuote,
+        uint24 fee,
         string name,
         string symbol,
         string uri

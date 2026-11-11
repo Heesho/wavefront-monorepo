@@ -41,11 +41,15 @@ abstract contract WavefrontInvariants is WavefrontFixture {
     function _launchCoins() internal virtual returns (Coin[] memory coins, MockQuote[] memory launchQuotes);
 
     /// @dev Launches a coin owned by `creator` against `token`.
-    function _launchAgainst(MockQuote token, uint256 supply, uint256 virtualQuote) internal returns (Coin coin) {
+    function _launchAgainst(MockQuote token, uint256 supply, uint256 virtualQuote, uint24 fee)
+        internal
+        returns (Coin coin)
+    {
         IWavefrontHook.LaunchParams memory params = _defaultParams(creator);
         params.quote = address(token);
         params.supply = supply;
         params.virtualQuote = virtualQuote;
+        params.fee = fee;
         (coin,) = _launchWith(creator, params, 0);
     }
 
@@ -320,27 +324,28 @@ contract WavefrontInvariantTest is WavefrontInvariants {
     function _launchCoins() internal override returns (Coin[] memory coins, MockQuote[] memory launchQuotes) {
         coins = new Coin[](2);
         (coins[0],) = _launch(creator, 0);
-        coins[1] = _launchAgainst(new MockQuote("Wrapped Ether", "WETH", 18), 21_000_000e18, 15 ether);
+        coins[1] = _launchAgainst(new MockQuote("Wrapped Ether", "WETH", 18), 21_000_000e18, 15 ether, DEFAULT_FEE);
         launchQuotes = new MockQuote[](0);
     }
 }
 
 /// @notice Coins at the edges of what a launch allows: quotes with 2 and 8 decimals, a thousand-coin
-///         supply priced above its quote, a quadrillion-coin supply, and the smallest curve permitted.
+///         supply priced above its quote, a quadrillion-coin supply, and the smallest curve permitted,
+///         at fees from the lowest (1%) to the highest (5%).
 contract WavefrontShapesInvariantTest is WavefrontInvariants {
     function _launchCoins() internal override returns (Coin[] memory coins, MockQuote[] memory launchQuotes) {
         coins = new Coin[](5);
-        coins[0] = _launchAgainst(new MockQuote("Two Decimals", "USD2", 2), 1_000_000_000e18, 100_000e2);
-        coins[1] = _launchAgainst(new MockQuote("Wrapped Bitcoin", "WBTC", 8), 1_000_000_000e18, 1e8);
-        coins[2] = _launchAgainst(new MockQuote("Wrapped Ether", "WETH", 18), 1000e18, 1000 ether);
-        coins[3] = _launchAgainst(new MockQuote("Wrapped Ether", "WETH", 18), 1e33, 10 ether);
-        coins[4] = _launchAgainst(quote, hook.MIN_SUPPLY(), hook.MIN_VIRTUAL_QUOTE());
+        coins[0] = _launchAgainst(new MockQuote("Two Decimals", "USD2", 2), 1_000_000_000e18, 100_000e2, 10_000);
+        coins[1] = _launchAgainst(new MockQuote("Wrapped Bitcoin", "WBTC", 8), 1_000_000_000e18, 1e8, 50_000);
+        coins[2] = _launchAgainst(new MockQuote("Wrapped Ether", "WETH", 18), 1000e18, 1000 ether, 30_000);
+        coins[3] = _launchAgainst(new MockQuote("Wrapped Ether", "WETH", 18), 1e33, 10 ether, 10_000);
+        coins[4] = _launchAgainst(quote, hook.MIN_SUPPLY(), hook.MIN_VIRTUAL_QUOTE(), 50_000);
         launchQuotes = new MockQuote[](0);
     }
 }
 
-/// @notice Runs that launch their own coins, with supply and curve depth drawn from the whole range a
-///         launch allows, against quotes of 2, 6, 8 and 18 decimals.
+/// @notice Runs that launch their own coins, with supply, curve depth and fee drawn from the whole range
+///         a launch allows, against quotes of 2, 6, 8 and 18 decimals.
 contract WavefrontLaunchInvariantTest is WavefrontInvariants {
     function _launchCoins() internal override returns (Coin[] memory coins, MockQuote[] memory launchQuotes) {
         coins = new Coin[](1);
