@@ -2,11 +2,11 @@
 
 A bonding-curve token launcher.
 
-A user calls one function and gets a fresh ERC20 with built-in market-making, a four-way fee split, an automatic floor-price ratchet, and zero-rate collateralized borrowing against held coins. No external liquidity needed at launch.
+A user calls one function and gets a fresh ERC20 with built-in market-making, a 2% trade fee that mostly feeds the floor, an automatic floor-price ratchet, and zero-rate collateralized borrowing against held coins. No external liquidity needed at launch.
 
 ## Packages
 
-- [`packages/hardhat`](packages/hardhat) — Solidity contracts with Hardhat tooling. 35 tests.
+- [`packages/hardhat`](packages/hardhat) — Solidity contracts with Hardhat tooling. 34 tests.
 - [`packages/foundry`](packages/foundry) — same contracts, independently maintained, with Foundry tooling. 17 tests.
 - [`packages/subgraph`](packages/subgraph) — The Graph subgraph indexing the deployed contracts. Matchstick test passing.
 
@@ -28,7 +28,7 @@ Read [`docs/bonding-curve.md`](docs/bonding-curve.md) for the full math, mechani
 
 - Virtual + real reserves on the quote side. The virtual reserve is a price floor anchor; the real reserve grows from buys.
 - Constant-product invariant `(virt + real) * coinReserve = k` for trade math.
-- 1% fee per trade, split 20/20/20 to **provider** (affiliate), **team** (per-coin), **treasury** (per-protocol). The remaining 40% is **healed** (buys) or **burned** (sells), pushing the floor up.
+- 2% fee per trade: 20% to the **team** (per-coin), 20% to the **treasury** (per-protocol). The remaining 60% is **healed** (buys) or **burned** (sells), pushing the floor up.
 - Public `heal(quoteAmount)` and `burn(coinAmount)` lets anyone donate to the curve, ratcheting the floor.
 - Holders can **borrow** quote against their coins at zero interest with no liquidations — the credit limit is bounded by what the curve owes at floor price.
 
@@ -80,7 +80,7 @@ See per-package READMEs:
 
 - `Coin.sol` — bonding curve ERC20 (`Ownable` + `Permit` + `Votes` + `ReentrancyGuard`). Buy / sell / borrow / repay / heal / burn. Mutable `team` address, set by `Ownable` owner.
 - `Core.sol` — owner-controlled launcher. Holds the quote token, registry of created coins, treasury address. Deploys `Coin` instances directly.
-- `Router.sol` — user-facing entry. `createCoin`, `buy`, `sell`. Persists per-account affiliate.
+- `Router.sol` — user-facing entry. `createCoin`, `buy`, `sell`.
 - `Multicall.sol` — read aggregator with slippage helpers (`buyQuoteIn`, `sellCoinIn`).
 - `mocks/USDC.sol` — 6-decimal mock for tests and dev deployments.
 

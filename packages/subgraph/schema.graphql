@@ -58,8 +58,6 @@ type CoinPosition @entity(immutable: false) {
   user: User!
   balance: BigDecimal!
   debt: BigDecimal!
-  affiliateRevenueQuote: BigDecimal!
-  affiliateRevenueCoin: BigDecimal!
 }
 
 type Swap @entity(immutable: false) {

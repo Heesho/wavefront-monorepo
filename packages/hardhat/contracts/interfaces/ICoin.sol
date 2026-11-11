@@ -21,8 +21,8 @@ interface ICoin {
     function totalDebtRaw() external view returns (uint256);
     function account_DebtRaw(address) external view returns (uint256);
 
-    function buy(uint256 quoteRawIn, uint256 minCoinAmtOut, uint256 deadline, address to, address provider) external returns (uint256 coinAmtOut);
-    function sell(uint256 coinAmtIn, uint256 minQuoteRawOut, uint256 deadline, address to, address provider) external returns (uint256 quoteRawOut);
+    function buy(uint256 quoteRawIn, uint256 minCoinAmtOut, uint256 deadline, address to) external returns (uint256 coinAmtOut);
+    function sell(uint256 coinAmtIn, uint256 minQuoteRawOut, uint256 deadline, address to) external returns (uint256 quoteRawOut);
     function borrow(address to, uint256 quoteRaw) external;
     function repay(address to, uint256 quoteRaw) external;
     function heal(uint256 quoteRaw) external;

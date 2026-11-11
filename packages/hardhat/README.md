@@ -6,7 +6,7 @@ Wavefront Solidity contracts with Hardhat tooling.
 
 - `Coin.sol` — bonding curve ERC20 (Ownable + Permit + Votes + ReentrancyGuard). Buy / sell / borrow / repay / heal / burn.
 - `Core.sol` — owner-controlled launcher. Deploys `Coin` instances, holds the protocol treasury.
-- `Router.sol` — user-facing entry. `createCoin`, `buy`, `sell`, with affiliate.
+- `Router.sol` — user-facing entry. `createCoin`, `buy`, `sell`.
 - `Multicall.sol` — read aggregator with slippage helpers.
 - `mocks/USDC.sol` — 6-decimal mock for tests and dev deployments.
 

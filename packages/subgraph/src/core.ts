@@ -92,8 +92,6 @@ export function handleCore__CoinCreated(event: Core__CoinCreated): void {
     position.user = owner.id;
     position.balance = ZERO_BD;
     position.debt = ZERO_BD;
-    position.affiliateRevenueQuote = ZERO_BD;
-    position.affiliateRevenueCoin = ZERO_BD;
   }
   position.save();
 }

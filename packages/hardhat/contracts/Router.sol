@@ -14,8 +14,6 @@ contract Router is ReentrancyGuard, Ownable {
 
     address public immutable core;
 
-    mapping(address => address) public account_Affiliate;
-
     event Router__CoinCreated(
         string name,
         string symbol,
@@ -23,21 +21,8 @@ contract Router is ReentrancyGuard, Ownable {
         address indexed creator,
         uint256 amountQuoteIn
     );
-    event Router__Buy(
-        address indexed coin,
-        address indexed account,
-        address indexed affiliate,
-        uint256 amountQuoteIn,
-        uint256 amountCoinOut
-    );
-    event Router__Sell(
-        address indexed coin,
-        address indexed account,
-        address indexed affiliate,
-        uint256 amountCoinIn,
-        uint256 amountQuoteOut
-    );
-    event Router__AffiliateSet(address indexed account, address indexed affiliate);
+    event Router__Buy(address indexed coin, address indexed account, uint256 amountQuoteIn, uint256 amountCoinOut);
+    event Router__Sell(address indexed coin, address indexed account, uint256 amountCoinIn, uint256 amountQuoteOut);
 
     constructor(address _core) {
         core = _core;
@@ -56,53 +41,32 @@ contract Router is ReentrancyGuard, Ownable {
         emit Router__CoinCreated(name, symbol, coin, msg.sender, amountQuoteIn);
     }
 
-    function buy(
-        address coin,
-        address affiliate,
-        uint256 amountQuoteIn,
-        uint256 minAmountCoinOut,
-        uint256 expireTimestamp
-    ) external nonReentrant {
-        _setAffiliate(affiliate);
-
+    function buy(address coin, uint256 amountQuoteIn, uint256 minAmountCoinOut, uint256 expireTimestamp)
+        external
+        nonReentrant
+    {
         address quote = ICore(core).quote();
         IERC20(quote).safeTransferFrom(msg.sender, address(this), amountQuoteIn);
         _safeApprove(quote, coin, amountQuoteIn);
 
-        uint256 amountCoinOut = ICoin(coin).buy(
-            amountQuoteIn, minAmountCoinOut, expireTimestamp, msg.sender, account_Affiliate[msg.sender]
-        );
+        uint256 amountCoinOut = ICoin(coin).buy(amountQuoteIn, minAmountCoinOut, expireTimestamp, msg.sender);
 
         uint256 remainingQuote = IERC20(quote).balanceOf(address(this));
         if (remainingQuote > 0) {
             IERC20(quote).safeTransfer(msg.sender, remainingQuote);
         }
 
-        emit Router__Buy(coin, msg.sender, affiliate, amountQuoteIn, amountCoinOut);
+        emit Router__Buy(coin, msg.sender, amountQuoteIn, amountCoinOut);
     }
 
-    function sell(
-        address coin,
-        address affiliate,
-        uint256 amountCoinIn,
-        uint256 minAmountQuoteOut,
-        uint256 expireTimestamp
-    ) external nonReentrant {
-        _setAffiliate(affiliate);
-
+    function sell(address coin, uint256 amountCoinIn, uint256 minAmountQuoteOut, uint256 expireTimestamp)
+        external
+        nonReentrant
+    {
         IERC20(coin).safeTransferFrom(msg.sender, address(this), amountCoinIn);
-        uint256 amountQuoteOut = ICoin(coin).sell(
-            amountCoinIn, minAmountQuoteOut, expireTimestamp, msg.sender, account_Affiliate[msg.sender]
-        );
+        uint256 amountQuoteOut = ICoin(coin).sell(amountCoinIn, minAmountQuoteOut, expireTimestamp, msg.sender);
 
-        emit Router__Sell(coin, msg.sender, affiliate, amountCoinIn, amountQuoteOut);
-    }
-
-    function _setAffiliate(address affiliate) internal {
-        if (account_Affiliate[msg.sender] == address(0) && affiliate != address(0)) {
-            account_Affiliate[msg.sender] = affiliate;
-            emit Router__AffiliateSet(msg.sender, affiliate);
-        }
+        emit Router__Sell(coin, msg.sender, amountCoinIn, amountQuoteOut);
     }
 
     function _safeApprove(address token, address spender, uint256 amount) internal {

@@ -4,14 +4,14 @@ const USDC_DECIMALS = 6;
 const ONE_MILLION_USDC = ethers.utils.parseUnits("1000000", USDC_DECIMALS);
 
 async function deployWavefront() {
-  const [owner, treasury, creator, alice, bob, affiliate, other] =
+  const [owner, treasury, creator, alice, bob, other] =
     await ethers.getSigners();
 
   const USDC = await ethers.getContractFactory("USDC");
   const usdc = await USDC.deploy();
   await usdc.deployed();
 
-  for (const signer of [owner, creator, alice, bob, affiliate, other]) {
+  for (const signer of [owner, creator, alice, bob, other]) {
     await usdc.mint(signer.address, ONE_MILLION_USDC);
   }
 
@@ -39,7 +39,6 @@ async function deployWavefront() {
     creator,
     alice,
     bob,
-    affiliate,
     other,
   };
 }

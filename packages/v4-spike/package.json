@@ -1,0 +1,22 @@
+{
+  "name": "@wavefront/v4-spike",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "description": "Feasibility spike: wavefront's curve, floor ratchet and borrowing on real Uniswap v4 liquidity",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test"
+  },
+  "dependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.2.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.5",
+    "@openzeppelin/contracts": "^4.8.0",
+    "@uniswap/v4-core": "1.0.2",
+    "chai": "^4.3.7",
+    "ethereum-waffle": "^4.0.10",
+    "ethers": "^5.7.2",
+    "hardhat": "^2.12.7",
+    "solmate": "^6.2.0"
+  }
+}

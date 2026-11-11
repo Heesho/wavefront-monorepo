@@ -25,3 +25,7 @@ packages/subgraph/tests/.latest.json
 .DS_Store
 .vscode/
 .idea/
+
+# v4 spike
+packages/v4-spike/cache/
+packages/v4-spike/artifacts/

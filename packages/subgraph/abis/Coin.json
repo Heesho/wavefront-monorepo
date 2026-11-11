@@ -243,31 +243,6 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "quoteRaw",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "coinAmt",
-        "type": "uint256"
-      }
-    ],
-    "name": "Coin__ProviderFee",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
         "name": "who",
         "type": "address"
       },
@@ -746,11 +721,6 @@
       {
         "internalType": "address",
         "name": "to",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "provider",
         "type": "address"
       }
     ],
@@ -1402,11 +1372,6 @@
       {
         "internalType": "address",
         "name": "to",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "provider",
         "type": "address"
       }
     ],

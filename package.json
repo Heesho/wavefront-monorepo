@@ -5,9 +5,12 @@
   "description": "Bonding curve token launcher",
   "license": "MIT",
   "workspaces": {
-    "packages": ["packages/*"],
+    "packages": [
+      "packages/*"
+    ],
     "nohoist": [
-      "@wavefront/subgraph/**"
+      "@wavefront/subgraph/**",
+      "@wavefront/v4/**"
     ]
   },
   "packageManager": "yarn@1.22.22",
@@ -20,6 +23,7 @@
     "test": "yarn test:hardhat && yarn test:foundry && yarn test:subgraph",
     "sync-abis": "node scripts/sync-abis.js",
     "subgraph:prepare": "yarn workspace @wavefront/subgraph prepare",
-    "subgraph:build": "yarn workspace @wavefront/subgraph build"
+    "subgraph:build": "yarn workspace @wavefront/subgraph build",
+    "test:v4": "yarn workspace @wavefront/v4 test"
   }
 }

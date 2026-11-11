@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_VERSION: v1.7.1
+
+jobs:
+  v1:
+    name: v1 contracts (Hardhat and Foundry)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: yarn install --frozen-lockfile
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - name: Hardhat tests
+        run: yarn test:hardhat
+      - name: Foundry tests
+        run: yarn test:foundry
+
+  v4:
+    name: v4 hook
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/v4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: yarn install --frozen-lockfile
+        working-directory: .
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - name: Formatting
+        run: yarn fmt:check
+      - name: Lint
+        run: yarn lint
+      - name: Build, and fail if a contract is over the size limit
+        run: forge build --sizes
+      # the v4 tests deploy the real v1 contracts as their reference
+      - name: Build the v1 reference
+        run: yarn build:reference
+      - name: Tests (10,000 fuzz runs per test, 100,000 calls per invariant)
+        run: forge test --no-match-contract BaseForkTest
+        env:
+          FOUNDRY_PROFILE: ci
+
+  v4-static-analysis:
+    name: v4 static analysis (Slither)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/v4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: yarn install --frozen-lockfile
+        working-directory: .
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install slither-analyzer==0.11.4
+      # accepted findings are listed, with reasons, in packages/v4/README.md
+      - name: Slither
+        run: slither . --fail-low
+
+  v4-fork:
+    name: v4 against live Uniswap on a Base fork
+    runs-on: ubuntu-latest
+    # needs an archive-capable RPC; skipped where the secret is not available (forks, for example)
+    if: ${{ github.event_name == 'push' }}
+    defaults:
+      run:
+        working-directory: packages/v4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: yarn install --frozen-lockfile
+        working-directory: .
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - name: Fork tests
+        run: forge test --match-contract BaseForkTest
+        env:
+          BASE_RPC_URL: ${{ secrets.BASE_RPC_URL || 'https://mainnet.base.org' }}
