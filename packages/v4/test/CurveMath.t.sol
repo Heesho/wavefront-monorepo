@@ -7,6 +7,7 @@ import {SqrtPriceMath} from "@uniswap/v4-core/src/libraries/SqrtPriceMath.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 
 import {CurveMath} from "../src/libraries/CurveMath.sol";
+import {TickRounding} from "../src/libraries/TickRounding.sol";
 import {IV1Coin, V1Fixture} from "./reference/V1.sol";
 
 /// @notice Differential tests: every CurveMath formula is checked against the deployed v1 Coin.
@@ -334,5 +335,84 @@ contract CurveMathTest is V1Fixture {
             p.realQuote, p.coinReserve, p.coinReserve + p.circulating, expected.sqrtFloorX96, sqrtMax
         );
         assertApproxEqRel(sqrtPrice, expected.sqrtPriceX96, tolerance, "price");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    A REBALANCE CAN ALWAYS PAY FOR ITSELF
+    //////////////////////////////////////////////////////////////*/
+
+    /// @dev A magnitude drawn evenly over the bit lengths up to `maxBits`, so that 1, a thousand and
+    ///      2^120 are all as likely as each other.
+    function _anyMagnitude(uint256 seed, uint256 maxBits) internal pure returns (uint256) {
+        uint256 bits = seed % (maxBits + 1);
+        if (bits == 0) return 0;
+        uint256 low = 1 << (bits - 1);
+        return low + (uint256(keccak256(abi.encode(seed))) % low);
+    }
+
+    /// @notice When the hook re-creates its position it puts back no more coins and no more quote than
+    ///         it has, whatever the reserves: one raw coin, no quote at all, the lowest and highest
+    ///         floors a launch allows, with or without debt. If it ever needed a unit more, the
+    ///         subtraction in the rebalance would revert and that coin could no longer be traded.
+    /// @dev The argument, for a position [lower, upper] at price `s` with the liquidity
+    ///      `L = liquidityForCoin(coins, s, upper)`:
+    ///
+    ///      Coins. `L <= coins * s * upper / (Q96 * (upper - s))`, so `x = L * Q96 * (upper - s) / upper`
+    ///      is at most `coins * s`. The PoolManager charges `ceil(ceil(x) / s)`; `coins * s` is a whole
+    ///      number, so `ceil(x) <= coins * s` and the charge is at most `coins`.
+    ///
+    ///      Quote. {CurveMath-sqrtPriceFor} rounds its liquidity down from the root of the quadratic
+    ///      that spends exactly `quote`, and rounds the price down from that liquidity; `L` above is
+    ///      no more than it. `L * (s - floor)` grows with both, so it is at most `quote * Q96`, and
+    ///      the charge `ceil(L * (s - floor) / Q96)` is at most `quote`. With debt, the lower bound is
+    ///      rounded up from `floor + ceil(debt * Q96 / L)`, which takes at least `debt` off that.
+    ///
+    ///      This test checks the argument against the PoolManager's own arithmetic over the whole
+    ///      range the hook's guards allow.
+    function testFuzz_rebalance_neverNeedsMoreThanItHas(
+        uint256 quoteSeed,
+        uint256 coinSeed,
+        uint256 circulatingSeed,
+        uint256 debtSeed,
+        int24 floorTick
+    ) public pure {
+        int24 spacing = 10;
+        int24 maxTick = TickMath.maxUsableTick(spacing);
+        uint160 sqrtMax = TickMath.getSqrtPriceAtTick(maxTick);
+        // the hook's own limits: the launch range of floors, and half of v4's liquidity per tick
+        floorTick = int24(bound(floorTick, -80_000, 40_000)) * spacing;
+        uint160 sqrtFloor = TickMath.getSqrtPriceAtTick(floorTick);
+        uint256 maxLiquidity = type(uint128).max / uint128(uint24(2 * (maxTick / spacing) + 1)) / 2;
+
+        // the largest supply whose curve at this floor stays within the liquidity ceiling
+        uint256 maxSupply = Math.min(1 << 126, FullMath.mulDiv(maxLiquidity, 1 << 96, sqrtFloor));
+        uint256 coins = bound(_anyMagnitude(coinSeed, 126), 1, maxSupply / 2);
+        uint256 circulating = bound(_anyMagnitude(circulatingSeed, 126), 0, maxSupply / 2);
+        uint256 quote = _anyMagnitude(quoteSeed, 127);
+
+        uint160 sqrtPrice = CurveMath.sqrtPriceFor(quote, coins, coins + circulating, sqrtFloor, sqrtMax);
+        assertGe(sqrtPrice, sqrtFloor, "price below the floor");
+        assertLt(sqrtPrice, sqrtMax, "price at the top of the range");
+        uint128 liquidity = CurveMath.liquidityForCoin(coins, sqrtPrice, sqrtMax);
+
+        // Debt is quote that was lent out of the curve, so it is never more than the curve between
+        // the floor and the price holds; quote beyond the curve (idle) cannot have been borrowed.
+        uint256 debt = bound(debtSeed, 0, SqrtPriceMath.getAmount1Delta(sqrtFloor, sqrtPrice, liquidity, false));
+        uint160 sqrtLower = sqrtFloor;
+        if (debt != 0) {
+            uint160 boundary = CurveMath.debtBoundarySqrtPriceX96(liquidity, sqrtFloor, debt);
+            int24 debtTick = TickRounding.ceil(boundary, spacing);
+            if (debtTick > floorTick) sqrtLower = TickMath.getSqrtPriceAtTick(debtTick);
+        }
+        if (sqrtLower > sqrtPrice) {
+            // parked on the lower bound: all coin
+            sqrtPrice = sqrtLower;
+            liquidity = CurveMath.liquidityForCoin(coins, sqrtPrice, sqrtMax);
+        }
+
+        uint256 coinsNeeded = SqrtPriceMath.getAmount0Delta(sqrtPrice, sqrtMax, liquidity, true);
+        uint256 quoteNeeded = SqrtPriceMath.getAmount1Delta(sqrtLower, sqrtPrice, liquidity, true);
+        assertLe(coinsNeeded, coins, "needs more coins than it has");
+        assertLe(quoteNeeded, quote - debt, "needs more quote than it has");
     }
 }

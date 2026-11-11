@@ -113,6 +113,9 @@ and Slither on every pull request, and the fork tests on pushes to `main`.
   parity wherever v1 has an equivalent.
 - `test/LongPath.t.sol`: 400 random trades on v1 and v4 side by side, then everyone exits.
 - `test/TokenShapes.t.sol`: quote tokens that are not textbook ERC20s (see "Quote tokens" below).
+- `test/WeiScale.t.sol`: the smallest market anyone can make, burned down by its creator until one raw
+  unit of rounding shows in the price. Even there nobody is frozen in: a buy, a donation and a sale
+  by someone without debt never revert.
 - `test/DirectPoolManager.t.sol`: what someone can do by talking to the PoolManager themselves instead
   of going through a router. Exact-output swaps, arbitrary price limits and several swaps before any
   is paid for must leave the hook's books balanced; a credit settled in the hook's name must not be
@@ -175,7 +178,10 @@ Found in review and left as they are; none lets anyone take another holder's mon
 - **A creator can shrink their own market.** Buying nearly the whole supply and burning it repeatedly
   takes a coin down to `MIN_LIQUIDITY`, far below what a launch allows, where a raw unit of rounding
   moves the price. It takes the creator's own money and is visible on chain; coins quoted in a
-  6-decimal token are not affected at any realistic size.
+  6-decimal token are not affected at any realistic size. In such a market a borrower selling
+  exactly all of their free coins can be refused, because their lock rounds up by a few raw coins as
+  the sale lands; selling slightly less works. While the pool holds no whole coin, `borrow` and
+  `repay` revert until someone sells.
 - **A router that calls `sync` on the coin before it swaps** can have a sell revert, because the hook
   redeems coins queued for burning inside the swap. Uniswap's routers sync when they pay, after the
   swap.
