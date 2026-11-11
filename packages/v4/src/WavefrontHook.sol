@@ -14,7 +14,6 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {SqrtPriceMath} from "@uniswap/v4-core/src/libraries/SqrtPriceMath.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
-import {TransientStateLibrary} from "@uniswap/v4-core/src/libraries/TransientStateLibrary.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
@@ -57,7 +56,6 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
     using StateLibrary for IPoolManager;
-    using TransientStateLibrary for IPoolManager;
 
     /// @notice Lowest trade fee a coin may launch with, in hundredths of a bip (1%).
     uint24 public constant MIN_FEE = 10_000;
@@ -160,7 +158,7 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
     /// @inheritdoc IWavefrontHook
     function launch(LaunchParams calldata params) external nonReentrant returns (address coin) {
         if (
-            params.quote == address(0) || params.supply < MIN_SUPPLY || params.supply > type(uint128).max
+            params.quote == address(0) || params.supply < MIN_SUPPLY || params.supply > uint128(type(int128).max)
                 || params.virtualQuote < MIN_VIRTUAL_QUOTE || params.virtualQuote > type(uint128).max
                 || params.fee < MIN_FEE || params.fee > MAX_FEE
         ) revert InvalidLaunchParams();
@@ -214,8 +212,12 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
 
     /// @inheritdoc IWavefrontHook
     function repay(address coin, address account, uint256 quoteAmount) external nonReentrant {
-        if (quoteAmount == 0) revert ZeroAmount();
         _market(coin);
+        // No more than is owed, so that a repayment in full cannot be made to fail by someone repaying
+        // a little of the same debt first.
+        uint256 debt = debtOf[coin][account];
+        if (quoteAmount > debt) quoteAmount = debt;
+        if (quoteAmount == 0) revert ZeroAmount();
 
         // The debt is written down only once the payment has arrived: a quote token that calls the
         // payer back mid-transfer must not find a market that already counts money it does not hold.
@@ -362,10 +364,11 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
     function _addInitialPosition(Market storage m, PoolKey memory key, uint256 supply) internal {
         uint128 liquidity = CurveMath.liquidityForCoin(supply, m.sqrtFloorX96, sqrtMaxX96);
         if (liquidity > maxLiquidity) revert InvalidLaunchParams();
-        poolManager.modifyLiquidity(key, _positionParams(m.lowerTick, int256(uint256(liquidity))), "");
+        (BalanceDelta delta,) =
+            poolManager.modifyLiquidity(key, _positionParams(m.lowerTick, int256(uint256(liquidity))), "");
         m.liquidity = liquidity;
 
-        uint256 owed = (-poolManager.currencyDelta(address(this), key.currency0)).toUint256();
+        uint256 owed = uint256(uint128(-delta.amount0()));
         poolManager.sync(key.currency0);
         IERC20(Currency.unwrap(key.currency0)).safeTransfer(address(poolManager), owed);
         poolManager.settle();
@@ -408,7 +411,9 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
 
     /// @dev Removes the position, applies the pending heal and burn to the reserves, and re-creates the
     ///      position that holds them, with its lower tick raised for the current debt.
-    ///      Must run while the PoolManager is unlocked and with the hook's deltas at zero.
+    ///      Must run while the PoolManager is unlocked. What it books is what its own calls returned,
+    ///      never the hook's running balance with the PoolManager: a credit or debit the hook did not
+    ///      create itself is left unsettled, which makes the PoolManager revert the transaction.
     /// @param lent Quote about to be paid out to a borrower: already in `totalDebt`, not yet out of the
     ///        market.
     function _rebalance(Market storage m, PoolKey memory key, uint256 lent) internal {
@@ -417,9 +422,10 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
 
         // v1's three numbers: real quote, coins in the pool, and (through `circulating`) the supply
         Curve memory c;
-        (c.coins, c.quote) = _removePosition(m, key);
-        if (c.coins == 0) revert CurveMath.EmptyCurve();
-        c.quote += m.idleQuote + m.totalDebt - lent;
+        (uint256 coinsOut, uint256 quoteOut) = _removePosition(m, key);
+        if (coinsOut == 0) revert CurveMath.EmptyCurve();
+        c.coins = coinsOut;
+        c.quote = quoteOut + m.idleQuote + m.totalDebt - lent;
         c.circulating = _supply(m, key.currency0) - c.coins;
 
         // the floor those reserves support, rounded down to a tick; it never falls
@@ -438,21 +444,21 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
         // and the price of v1's curve at that floor, given the coins in the pool
         c.sqrtPriceX96 = CurveMath.sqrtPriceFor(c.quote, c.coins, c.circulating + c.coins, c.sqrtFloorX96, sqrtMaxX96);
 
-        _addPosition(m, key, c, poolSqrtPrice);
+        (uint256 coinsIn, uint256 quoteIn) = _addPosition(m, key, c, poolSqrtPrice);
         m.pendingHeal -= c.healed;
         m.pendingBurn -= c.burned;
 
         // Coins the position no longer holds are the pool's side of a burn (plus rounding dust). With
         // the pending burn just applied they wait in the burn queue: inside a swap the PoolManager may
         // not physically hold them yet.
-        uint256 coinDelta = poolManager.currencyDelta(address(this), key.currency0).toUint256();
+        uint256 coinDelta = coinsOut - coinsIn;
         if (coinDelta != 0) poolManager.mint(address(this), key.currency0.toId(), coinDelta);
         m.burnQueue += coinDelta + c.burned;
 
         // Quote the position does not hold stays idle for this market: what a raised lower tick freed
         // for borrowers, and what was not yet enough to lift the floor a tick. The next rebalance counts
         // it again.
-        int256 quoteDelta = poolManager.currencyDelta(address(this), key.currency1);
+        int256 quoteDelta = quoteOut.toInt256() - quoteIn.toInt256();
         if (quoteDelta > 0) {
             poolManager.mint(address(this), key.currency1.toId(), uint256(quoteDelta));
         } else if (quoteDelta < 0) {
@@ -527,8 +533,13 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
     }
 
     /// @dev Sizes the position for its coins, raises its lower tick for the debt, moves the pool price
-    ///      and adds it. The hook's deltas afterwards are the principal removed minus what was put back.
-    function _addPosition(Market storage m, PoolKey memory key, Curve memory c, uint160 poolSqrtPrice) internal {
+    ///      and adds it.
+    /// @return coinsIn Coins the new position took.
+    /// @return quoteIn Quote the new position took.
+    function _addPosition(Market storage m, PoolKey memory key, Curve memory c, uint160 poolSqrtPrice)
+        internal
+        returns (uint256 coinsIn, uint256 quoteIn)
+    {
         uint160 sqrtPrice = c.sqrtPriceX96;
         uint128 liquidity = CurveMath.liquidityForCoin(c.coins, sqrtPrice, sqrtMaxX96);
 
@@ -558,7 +569,10 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
             );
         }
         if (liquidity != 0) {
-            poolManager.modifyLiquidity(key, _positionParams(lowerTick, int256(uint256(liquidity))), "");
+            (BalanceDelta delta,) =
+                poolManager.modifyLiquidity(key, _positionParams(lowerTick, int256(uint256(liquidity))), "");
+            coinsIn = uint256(uint128(-delta.amount0()));
+            quoteIn = uint256(uint128(-delta.amount1()));
         }
 
         c.sqrtPriceX96 = sqrtPrice;
@@ -592,12 +606,15 @@ contract WavefrontHook is BaseHook, IUnlockCallback, IWavefrontHook, Ownable2Ste
     //////////////////////////////////////////////////////////////*/
 
     /// @dev Pulls `amount` from `payer` into the PoolManager and holds it as claims.
+    ///      The PoolManager must credit exactly `amount`: a token that keeps a cut of the transfer, or
+    ///      one that lets the payer reach the PoolManager mid-transfer and claim the payment as their
+    ///      own, is refused here.
     function _payIn(Currency currency, address payer, uint256 amount) internal {
         poolManager.sync(currency);
         // `payer` is always the caller of the user action that started this unlock
         // slither-disable-next-line arbitrary-send-erc20
         IERC20(Currency.unwrap(currency)).safeTransferFrom(payer, address(poolManager), amount);
-        poolManager.settle();
+        if (poolManager.settle() != amount) revert PaymentNotReceived();
         poolManager.mint(address(this), currency.toId(), amount);
     }
 
