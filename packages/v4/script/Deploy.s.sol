@@ -56,6 +56,10 @@ contract Deploy is Script {
         d = deploy(IPoolManager(poolManager), hookOwner, tickSpacing);
         if (treasury != address(0) && hookOwner == msg.sender) d.hook.setTreasury(treasury);
         vm.stopBroadcast();
+        if (treasury != address(0) && hookOwner != msg.sender) {
+            console2.log("NOTE: TREASURY was not set: only HOOK_OWNER can set it. Until it does,");
+            console2.log("      the treasury's share of every fee goes to the coin's floor.");
+        }
 
         console2.log("chain id        ", block.chainid);
         console2.log("PoolManager     ", poolManager);

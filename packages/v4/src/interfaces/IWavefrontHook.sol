@@ -105,6 +105,8 @@ interface IWavefrontHook {
     error CreditExceeded();
     /// @notice Thrown when the freed quote does not cover a borrow.
     error InsufficientIdleQuote();
+    /// @notice Thrown when the PoolManager was not credited exactly the amount a payer was asked for.
+    error PaymentNotReceived();
     /// @notice Thrown on a zero amount.
     error ZeroAmount();
     /// @notice Thrown when a launch's supply or virtual quote is outside the allowed bounds.
@@ -119,7 +121,8 @@ interface IWavefrontHook {
     /// @notice Borrows quote against the caller's coins at zero interest.
     function borrow(address coin, uint256 quoteAmount, address to) external;
 
-    /// @notice Repays `account`'s debt with the caller's quote.
+    /// @notice Repays `account`'s debt with the caller's quote. An amount above the debt repays it in
+    ///         full; the `Repaid` event carries what was actually paid.
     function repay(address coin, address account, uint256 quoteAmount) external;
 
     /// @notice Donates quote to a coin's curve. It raises the price and floor as soon as it is enough to

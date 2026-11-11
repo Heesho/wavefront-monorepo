@@ -28,9 +28,9 @@ contract WavefrontRouter is IUnlockCallback {
     /// @notice The wavefront hook whose coins this router trades.
     IWavefrontHook public immutable hook;
 
-    /// @notice Emitted on a buy.
+    /// @notice Emitted on a buy, with the quote actually spent.
     event Bought(address indexed coin, address indexed account, uint256 quoteIn, uint256 coinOut);
-    /// @notice Emitted on a sell.
+    /// @notice Emitted on a sell, with the coins actually sold.
     event Sold(address indexed coin, address indexed account, uint256 coinIn, uint256 quoteOut);
 
     /// @notice Thrown when a trade is submitted after its deadline.
@@ -63,8 +63,9 @@ contract WavefrontRouter is IUnlockCallback {
         bound.salt = _salt(msg.sender, params.salt);
         coin = hook.launch(bound);
         if (quoteIn != 0) {
-            coinOut = _swap(coin, false, quoteIn, minCoinOut, 0);
-            emit Bought(coin, msg.sender, quoteIn, coinOut);
+            uint256 paid;
+            (paid, coinOut) = _swap(coin, false, quoteIn, minCoinOut, 0);
+            emit Bought(coin, msg.sender, paid, coinOut);
         }
     }
 
@@ -88,8 +89,9 @@ contract WavefrontRouter is IUnlockCallback {
         external
         returns (uint256 coinOut)
     {
-        coinOut = _swap(coin, false, quoteIn, minCoinOut, deadline);
-        emit Bought(coin, msg.sender, quoteIn, coinOut);
+        uint256 paid;
+        (paid, coinOut) = _swap(coin, false, quoteIn, minCoinOut, deadline);
+        emit Bought(coin, msg.sender, paid, coinOut);
     }
 
     /// @notice Sells exactly `coinIn` of `coin` for quote.
@@ -102,13 +104,14 @@ contract WavefrontRouter is IUnlockCallback {
         external
         returns (uint256 quoteOut)
     {
-        quoteOut = _swap(coin, true, coinIn, minQuoteOut, deadline);
-        emit Sold(coin, msg.sender, coinIn, quoteOut);
+        uint256 paid;
+        (paid, quoteOut) = _swap(coin, true, coinIn, minQuoteOut, deadline);
+        emit Sold(coin, msg.sender, paid, quoteOut);
     }
 
     /// @notice Executes the swap inside the PoolManager's unlock.
     /// @param data ABI-encoded `(payer, coin, zeroForOne, amountIn)`.
-    /// @return ABI-encoded amount received.
+    /// @return ABI-encoded `(paid, received)`.
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         if (msg.sender != address(poolManager)) revert NotPoolManager();
         (address payer, address coin, bool zeroForOne, uint256 amountIn) =
@@ -138,15 +141,19 @@ contract WavefrontRouter is IUnlockCallback {
         poolManager.settle();
         poolManager.take(currencyOut, payer, received);
 
-        return abi.encode(received);
+        return abi.encode(paid, received);
     }
 
+    /// @dev A trade the pool cannot fill completely is charged only for the part it filled.
+    /// @return paid Input the pool consumed, at most `amountIn`.
+    /// @return amountOut Output received.
     function _swap(address coin, bool zeroForOne, uint256 amountIn, uint256 minOut, uint256 deadline)
         internal
-        returns (uint256 amountOut)
+        returns (uint256 paid, uint256 amountOut)
     {
         if (deadline != 0 && block.timestamp > deadline) revert Expired();
-        amountOut = abi.decode(poolManager.unlock(abi.encode(msg.sender, coin, zeroForOne, amountIn)), (uint256));
+        (paid, amountOut) =
+            abi.decode(poolManager.unlock(abi.encode(msg.sender, coin, zeroForOne, amountIn)), (uint256, uint256));
         if (amountOut < minOut) revert Slippage();
     }
 

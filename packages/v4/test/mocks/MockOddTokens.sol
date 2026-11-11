@@ -54,3 +54,26 @@ contract MockCallbackToken is MockNoReturnToken {
         super._move(from, to, amount);
     }
 }
+
+/// @notice A token that calls the sender back either before or after their balance moves. Unlike
+///         {MockCallbackToken} it can hand the payer control once the payment is already in place.
+contract MockHookedToken is MockNoReturnToken {
+    bool public immutable afterMove;
+
+    constructor(bool afterMove_) {
+        afterMove = afterMove_;
+    }
+
+    function _move(address from, address to, uint256 amount) internal override {
+        if (!afterMove) _notify(from);
+        super._move(from, to, amount);
+        if (afterMove) _notify(from);
+    }
+
+    function _notify(address from) internal {
+        if (from.code.length != 0) {
+            (bool ok,) = from.call(abi.encodeWithSignature("onTransfer()"));
+            ok;
+        }
+    }
+}

@@ -848,6 +848,55 @@ contract WavefrontHookTest is WavefrontFixture {
         assertEq(coin.balanceOf(bob), balance);
     }
 
+    /// @notice A repayment above the debt repays the debt and takes no more.
+    function test_repay_aboveTheDebt_takesOnlyTheDebt() public {
+        (Coin coin,) = _launch(creator, 1000 * ONE_USDC);
+        _buy(coin, alice, 50_000 * ONE_USDC);
+        uint256 amount = hook.creditOf(address(coin), alice) / 2;
+        _borrow(coin, alice, amount);
+        quote.mint(alice, amount);
+        uint256 balance = quote.balanceOf(alice);
+
+        vm.startPrank(alice);
+        quote.approve(address(hook), type(uint256).max);
+        vm.expectEmit(address(hook));
+        emit IWavefrontHook.Repaid(address(coin), alice, alice, amount);
+        hook.repay(address(coin), alice, amount * 2);
+        vm.stopPrank();
+
+        assertEq(hook.debtOf(address(coin), alice), 0);
+        assertEq(_market(coin).totalDebt, 0);
+        assertEq(quote.balanceOf(alice), balance - amount, "paid more than was owed");
+    }
+
+    /// @notice Someone repaying a sliver of a borrower's debt just ahead of them cannot make the
+    ///         borrower's own repayment in full fail.
+    /// @dev Found in review: the repayment used to revert for exceeding the debt by that sliver.
+    function test_repay_inFull_survivesSomeoneRepayingALittleFirst() public {
+        (Coin coin,) = _launch(creator, 1000 * ONE_USDC);
+        _buy(coin, alice, 50_000 * ONE_USDC);
+        uint256 amount = hook.creditOf(address(coin), alice) / 2;
+        _borrow(coin, alice, amount);
+
+        quote.mint(bob, 1);
+        vm.startPrank(bob);
+        quote.approve(address(hook), 1);
+        hook.repay(address(coin), alice, 1);
+        vm.stopPrank();
+
+        _repay(coin, alice, amount);
+        assertEq(hook.debtOf(address(coin), alice), 0);
+        assertEq(hook.lockedOf(address(coin), alice), 0);
+        assertEq(quote.balanceOf(alice), 1, "alice paid for what bob had already repaid");
+    }
+
+    function test_repay_withNoDebt_reverts() public {
+        (Coin coin,) = _launch(creator, 1000 * ONE_USDC);
+        vm.expectRevert(IWavefrontHook.ZeroAmount.selector);
+        vm.prank(alice);
+        hook.repay(address(coin), alice, 1);
+    }
+
     function test_repay_anyoneCanRepayForAnAccount() public {
         (Coin coin,) = _launch(creator, 1000 * ONE_USDC);
         _buy(coin, alice, 50_000 * ONE_USDC);
