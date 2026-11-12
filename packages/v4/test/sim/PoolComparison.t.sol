@@ -234,7 +234,7 @@ contract PoolComparisonSim is WavefrontFixture {
         console2.log("SUM,wavefront_floor_after_exit", d.floorPrice);
         console2.log("SUM,plain_price_after_exit", _plainPrice(plain));
         console2.log("SUM,wavefront_supply_after_exit", d.supply);
-        console2.log("SUM,wavefront_real_quote_left", d.realQuote + m.idleQuote + m.pendingHeal);
+        console2.log("SUM,wavefront_real_quote_left", d.realQuote + m.pendingHeal);
         console2.log("SUM,wavefront_team_fees_quote", hook.feesOwed(address(quote), creator));
         console2.log("SUM,wavefront_treasury_fees_quote", hook.feesOwed(address(quote), treasury));
         console2.log("SUM,wavefront_team_fees_coin", hook.feesOwed(address(coin), creator));

@@ -725,7 +725,7 @@ contract WavefrontHookTest is WavefrontFixture {
         uint256 bought = _buy(coin, newcomer, 100 * ONE_USDC);
         m = _market(coin);
         uint256 real = lens.getCoinData(address(coin), address(0)).realQuote;
-        assertLe(m.idleQuote + m.pendingHeal, (real + m.idleQuote) / 999 + 2, "quote stranded outside the position");
+        assertLe(m.idleQuote + m.pendingHeal, real / 999 + 2, "quote stranded outside the position");
         assertGt(_sell(coin, newcomer, bought), 95 * ONE_USDC, "the market no longer works");
     }
 
