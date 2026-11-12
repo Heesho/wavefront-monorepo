@@ -2,7 +2,14 @@
 
 Wavefront rebuilt on Uniswap v4, with feature parity to the v1 contracts in `packages/hardhat` and
 `packages/foundry`. Each coin trades in a standard v4 pool whose only liquidity is one position owned by
-the wavefront hook, so routers and indexers that understand v4 need no wavefront-specific support.
+the wavefront hook. Prices, amounts and liquidity are the PoolManager's own, in its standard events, so
+anything that reads v4 pools reads these without wavefront-specific code.
+
+Being routed is a separate matter. Uniswap Labs' own router picks up most hooks automatically but
+requires [manual allowlisting](https://support.uniswap.org/hc/en-us/articles/48291859140621-Routing-for-hooked-pools)
+for any hook that uses `afterSwap`, which this one does. That is requested once the hook is deployed
+and verified; it is at Uniswap Labs' discretion. A hook whose address starts with `0x91` is excluded
+too, so check the mined address before deploying. Other routers and aggregators set their own rules.
 
 The v1 contracts are the reference oracle: tests deploy the real v1 build and assert the v4 code agrees.
 
@@ -31,9 +38,12 @@ in the same transaction. The creator chooses:
   means it takes more quote to move the price. At least 1,000 coins of supply and 1,000,000 raw units
   of virtual quote (1 USDC), so that a raw unit of rounding is never more than a millionth of the curve.
 - `fee`: what every trade of the coin pays, from 1% to 5% (`10000` to `50000`; v4 counts fees in
-  hundredths of a basis point). It is fixed for good: nobody can change what holders pay after they
-  buy. A fifth goes to the team, a fifth to the treasury, and the rest raises the floor. A lower fee
-  costs traders less; a higher one lifts the floor faster and pays the team more.
+  hundredths of a basis point). It is the pool's LP fee and is fixed for good: neither the creator nor
+  wavefront can change it after launch. A fifth goes to the team, a fifth to the treasury, and the
+  rest raises the floor. A lower fee costs traders less; a higher one lifts the floor faster and pays
+  the team more. Uniswap governance can separately switch on a protocol fee for any v4 pool, up to
+  0.1% in each direction. It is charged on top, goes to Uniswap, and is outside the hook's control;
+  the lens's quotes include it.
 - `owner` and `team`: the owner controls the URI and team; the team receives the coin's fee share.
 - `salt`: the coin's address must sort below the quote token's, so a front end tries salts with
   `predictCoin` until one does. The address also depends on the caller, so a pending launch cannot be
@@ -60,9 +70,11 @@ the pool's coins put it at (`CurveMath.sqrtPriceFor`). There is no separate heal
   (less than 0.1% of what the market holds) waits outside the position as `idleQuote` and is counted
   again every time, so it lifts the floor as soon as it is worth a tick.
 - **Fees are applied when they are worth a tick.** Re-creating a position costs gas, so heal and burn
-  fees wait as `pendingHeal` / `pendingBurn` until together they lift the floor by a tick spacing. Over
-  400-trade random paths the market price stays within 1% of v1's (0.25% to 0.4% on average) and the
-  total paid out to sellers within 0.003% (`test/LongPath.t.sol`).
+  fees wait as `pendingHeal` / `pendingBurn` until together they lift the floor by a tick spacing.
+  `test/LongPath.t.sol` runs 400-trade random paths on both systems and requires the market and floor
+  price to stay within 2% of v1's at every step and the total paid out to sellers within 0.02%. On
+  those paths the price was observed within 1% (0.25% to 0.4% on average) and the payout within
+  0.003%; the observed figures are not guarantees.
 - **Fees are claimed, not pushed.** Team and treasury shares accrue in the hook and are paid by
   `claimFees`, because inside a swap the hook cannot move tokens the trader has not paid yet.
 - **Borrowers lock a small fixed margin.** On top of the coins backing a debt, each borrower locks one
@@ -162,14 +174,17 @@ Any standard ERC20 works, including ones whose transfer functions return nothing
 
 Found in review and left as they are; none lets anyone take another holder's money.
 
-- **A sell with nothing below it is expensive.** When the price sits exactly on the bottom of the
-  position (a coin nobody has bought yet, or one where only locked coins remain), a sell fills
-  nothing, but the swap runs the price through the empty range and the hook brings it back: 2M to 4M
-  gas for the seller at a tick spacing of 10. Nobody can push that cost onto someone else. A tick
-  spacing of 1 would multiply it by ten, so do not deploy with one.
+- **A sell with nothing below it is expensive through other routers.** When the price sits exactly
+  on the bottom of the position (a coin nobody has bought yet, or one where only locked coins
+  remain), a sell fills nothing. `WavefrontRouter` stops every sell at the position's lower tick, so
+  there it makes no swap and costs about 26k gas. A router that sends the sell with no price limit
+  of its own, as Uniswap's do, still runs the price through the empty range and the hook brings it
+  back: 2M to 4M gas for the seller at a tick spacing of 10. Nobody can push that cost onto someone
+  else. A tick spacing of 1 would multiply it by ten, so do not deploy with one.
 - **Swap events can look odd to an indexer.** Every rebalance that moves the price emits a
-  zero-amount `Swap` from the hook, and the sell above emits one whose price is the swap's limit
-  (near zero) before the corrective one. A chart built from raw swap prices could show a wick.
+  zero-amount `Swap` from the hook. The empty sell above, when sent through a router other than
+  `WavefrontRouter`, also emits one whose price is the swap's limit (near zero) before the
+  corrective one. A chart built from raw swap prices could show a wick.
 - **Fees waiting for holders go to whoever becomes one.** While holders have under 0.1% of the supply,
   heals and burns wait. They are applied by the swap that takes holders over 0.1%, and that buyer can
   sell again in the same transaction, so the waiting amount can be collected without capital. A
@@ -239,5 +254,8 @@ deployment as an experiment with money you can afford to lose.**
   done; it is not a substitute.
 - A live deployment. The scripts are tested on a fork; nothing has been sent to a chain, so how
   scanners display these pools is still unverified.
+- Routing through Uniswap Labs' interface. The hook uses `afterSwap`, so it has to be submitted for
+  allowlisting after it is deployed and verified (see the top of this file). Until that is granted,
+  trades reach these pools through `WavefrontRouter` or any router told the pool key directly.
 - Subgraph for the v4 events.
 - Complete NatSpec tags (the linter reports about 100 missing `@param` / `@return` tags).
