@@ -128,6 +128,13 @@ contract WavefrontHookTest is WavefrontFixture {
         try hook.launch(params) returns (address direct) {
             assertTrue(direct != expected);
         } catch {}
+        // and, the sharper attempt, hands the hook exactly what the router would have sent for the
+        // creator: the same parameters with the salt already bound to the creator
+        IWavefrontHook.LaunchParams memory asSent = _defaultParams(creator);
+        asSent.salt = keccak256(abi.encode(creator, params.salt));
+        try hook.launch(asSent) returns (address direct) {
+            assertTrue(direct != expected, "the hook let someone else take the creator's address");
+        } catch {}
         vm.stopPrank();
 
         quote.mint(creator, 1000 * ONE_USDC);
@@ -634,6 +641,41 @@ contract WavefrontHookTest is WavefrontFixture {
 
     /// @notice A donation too large for a v4 position to represent is not applied; it must not stop
     ///         trading either.
+    /// @notice Burning lifts the price along with the floor. A burn that would carry the price past the
+    ///         cap near the top of v4's range waits, and the market keeps trading below the cap.
+    function test_burn_beyondThePriceCap_waitsAndTradingContinues() public {
+        MockQuote big = new MockQuote("Big", "BIG", 18);
+        IWavefrontHook.LaunchParams memory params = _defaultParams(creator);
+        params.quote = address(big);
+        params.supply = 1e21;
+        params.virtualQuote = 1e33; // a floor about 276,000 ticks up, so the cap is within reach
+        (Coin coin,) = _launchWith(creator, params, 0);
+        uint160 sqrtCap = TickMath.getSqrtPriceAtTick(TickMath.maxUsableTick(TICK_SPACING) - 100_000);
+
+        // buy nearly everything and burn nearly all of it, until a burn is refused
+        bool refused;
+        for (uint256 i; i < 20 && !refused; ++i) {
+            _buy(coin, alice, 1e36);
+            uint256 keep = hook.effectiveSupply(address(coin)) / 400;
+            uint256 balance = coin.balanceOf(alice);
+            if (balance <= keep) continue;
+            _burn(coin, alice, balance - keep);
+            refused = _market(coin).pendingBurn != 0;
+            assertLt(hook.sqrtPriceX96(address(coin)), sqrtCap, "a burn carried the price past the cap");
+        }
+        assertTrue(refused, "never reached the cap");
+        assertGt(_market(coin).liquidity, hook.MIN_LIQUIDITY() * 1000, "stopped by the liquidity guard instead");
+
+        // The market still trades. The burn waits only for as long as it would overshoot: once
+        // selling has brought the price down it may be applied, and still must not pass the cap.
+        assertGt(_buy(coin, bob, 1e36), 0);
+        assertLt(hook.sqrtPriceX96(address(coin)), sqrtCap);
+        assertGt(_sell(coin, bob, coin.balanceOf(bob)), 0);
+        assertLt(hook.sqrtPriceX96(address(coin)), sqrtCap);
+        assertGt(_sell(coin, alice, coin.balanceOf(alice) / 2), 0);
+        assertLt(hook.sqrtPriceX96(address(coin)), sqrtCap);
+    }
+
     function test_heal_beyondTheLiquidityCeiling_staysPendingAndTradingContinues() public {
         MockQuote big = new MockQuote("Big", "BIG", 18);
         IWavefrontHook.LaunchParams memory params = _defaultParams(creator);

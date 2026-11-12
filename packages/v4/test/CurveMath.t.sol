@@ -181,6 +181,24 @@ contract CurveMathTest is V1Fixture {
     /// @notice With the floor rounded down to a tick, as the hook does, the position is v1's curve at
     ///         that floor: it absorbs every circulating coin exactly as the price reaches the floor, and
     ///         leaves less than a tick spacing's worth of the quote out.
+    /// @notice The floor is never rounded up: `floor^2 * circulating * supply <= quote * coins`, in
+    ///         exact arithmetic. A floor a hair too high would promise sellers quote that is not there.
+    function testFuzz_sqrtFloorFor_roundsDown(uint256 quote, uint256 coins, uint256 circulating) public pure {
+        coins = bound(coins, 1, 1e33);
+        circulating = bound(circulating, 1, 1e33);
+        quote = bound(quote, 1, 1e33);
+        uint256 target = CurveMath.sqrtFloorFor(quote, coins, circulating);
+        vm.assume(target != 0 && target < 1 << 128);
+
+        // target^2 * C * S / 2^192, rounded down, must not exceed X * y; the two factors on the left
+        // each fit a word, and mulDiv keeps their product exact
+        assertLe(
+            FullMath.mulDiv(target * target, circulating * (circulating + coins), 1 << 192),
+            quote * coins,
+            "floor rounded up"
+        );
+    }
+
     function testFuzz_sqrtFloorFor_everyCoinCanBeSold(uint256 quote, uint256 coins, uint256 circulating) public pure {
         coins = bound(coins, 1e21, 1e30);
         circulating = bound(circulating, 1e18, 1e30);

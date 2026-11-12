@@ -39,6 +39,9 @@ contract WeiScaleTest is WavefrontFixture {
 
     function test_setup_reachesTheSmallestMarket() public view {
         assertLt(_market(coin).liquidity, 1e10, "liquidity was not burned down");
+        // and no further: the last burn is refused and waits
+        assertGe(_market(coin).liquidity, hook.MIN_LIQUIDITY(), "a burn thinned the position past the minimum");
+        assertGt(_market(coin).pendingBurn, 0, "the burn that would have gone under was applied");
         assertLt(hook.effectiveSupply(address(coin)), 1e14, "supply was not burned down");
     }
 
