@@ -4,25 +4,36 @@ pragma solidity ^0.8.26;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {FixedPoint96} from "@uniswap/v4-core/src/libraries/FixedPoint96.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
+import {ProtocolFeeLibrary} from "@uniswap/v4-core/src/libraries/ProtocolFeeLibrary.sol";
 import {SqrtPriceMath} from "@uniswap/v4-core/src/libraries/SqrtPriceMath.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {IImmutableState} from "@uniswap/v4-periphery/src/interfaces/IImmutableState.sol";
 
 import {Coin} from "./Coin.sol";
 import {IWavefrontHook} from "./interfaces/IWavefrontHook.sol";
-import {CurveMath} from "./libraries/CurveMath.sol";
 
 /// @title WavefrontLens
 /// @notice Read-only aggregator for front ends: one call for a coin's state, plus exact-input quotes.
 /// @dev Stateless and not relied on by any other contract.
 contract WavefrontLens {
+    using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
+    using ProtocolFeeLibrary for uint24;
+    using ProtocolFeeLibrary for uint16;
+
     uint256 internal constant WAD = 1e18;
     uint256 internal constant FEE_DENOMINATOR = 1e6;
 
     /// @notice The wavefront hook this lens reads.
     IWavefrontHook public immutable hook;
+    /// @notice The Uniswap v4 PoolManager the hook's pools live in.
+    IPoolManager public immutable poolManager;
 
     /// @notice Everything a front end needs about one coin and one account.
     struct CoinData {
@@ -41,7 +52,7 @@ contract WavefrontLens {
         uint256 pendingHeal; // quote waiting to join the curve
         uint256 pendingBurn; // coins waiting to be burned out of circulation
         uint128 liquidity;
-        uint256 realQuote; // quote backing the curve, including quote lent out
+        uint256 realQuote; // quote backing the curve: in the position, idle, or lent out; not `pendingHeal`
         uint256 totalDebt;
         uint256 accountQuoteBalance;
         uint256 accountCoinBalance;
@@ -54,6 +65,7 @@ contract WavefrontLens {
     /// @param hook_ The wavefront hook.
     constructor(IWavefrontHook hook_) {
         hook = hook_;
+        poolManager = IImmutableState(address(hook_)).poolManager();
     }
 
     /// @notice State of `coin`, with `account`'s position if `account` is non-zero.
@@ -80,7 +92,7 @@ contract WavefrontLens {
         data.pendingHeal = m.pendingHeal;
         data.pendingBurn = m.pendingBurn;
         data.liquidity = m.liquidity;
-        data.realQuote = CurveMath.realQuote(m.liquidity, m.sqrtFloorX96, sqrtPrice);
+        data.realQuote = _realQuote(m, sqrtPrice);
         data.totalDebt = m.totalDebt;
 
         if (account != address(0)) {
@@ -101,8 +113,9 @@ contract WavefrontLens {
     function quoteBuy(address coin, uint256 quoteIn) external view returns (uint256 coinOut) {
         IWavefrontHook.Market memory m = hook.market(coin);
         if (m.liquidity == 0 || quoteIn == 0) return 0;
-        uint160 sqrtPrice = hook.sqrtPriceX96(coin);
-        uint160 next = SqrtPriceMath.getNextSqrtPriceFromInput(sqrtPrice, m.liquidity, _lessFee(coin, quoteIn), false);
+        (uint160 sqrtPrice, uint24 swapFee) = _priceAndSwapFee(coin, false);
+        uint160 next =
+            SqrtPriceMath.getNextSqrtPriceFromInput(sqrtPrice, m.liquidity, _lessFee(quoteIn, swapFee), false);
         return SqrtPriceMath.getAmount0Delta(sqrtPrice, next, m.liquidity, false);
     }
 
@@ -114,18 +127,42 @@ contract WavefrontLens {
     function quoteSell(address coin, uint256 coinIn) external view returns (uint256 quoteOut) {
         IWavefrontHook.Market memory m = hook.market(coin);
         if (m.liquidity == 0 || coinIn == 0) return 0;
-        uint160 sqrtPrice = hook.sqrtPriceX96(coin);
+        (uint160 sqrtPrice, uint24 swapFee) = _priceAndSwapFee(coin, true);
         uint160 sqrtLower = TickMath.getSqrtPriceAtTick(m.lowerTick);
         if (sqrtPrice <= sqrtLower) return 0;
-        uint160 next = SqrtPriceMath.getNextSqrtPriceFromInput(sqrtPrice, m.liquidity, _lessFee(coin, coinIn), true);
+        uint160 next = SqrtPriceMath.getNextSqrtPriceFromInput(sqrtPrice, m.liquidity, _lessFee(coinIn, swapFee), true);
         if (next < sqrtLower) next = sqrtLower;
         return SqrtPriceMath.getAmount1Delta(next, sqrtPrice, m.liquidity, false);
     }
 
-    /// @dev The part of an input that reaches the curve after the pool's LP fee.
-    function _lessFee(address coin, uint256 amountIn) internal view returns (uint256) {
-        PoolKey memory key = hook.poolKey(coin);
-        return FullMath.mulDiv(amountIn, FEE_DENOMINATOR - key.fee, FEE_DENOMINATOR);
+    /// @notice The pool's price and the fee a swap in the given direction pays right now.
+    /// @dev That fee is the pool's LP fee plus, when Uniswap governance has switched one on for the
+    ///      pool, the protocol fee, combined exactly as the PoolManager combines them (see `Pool.swap`).
+    /// @param coin Coin whose pool to read.
+    /// @param zeroForOne True for a sell (coin in), false for a buy (quote in). The protocol fee is
+    ///        set per direction.
+    /// @return sqrtPrice Current pool sqrt price.
+    /// @return swapFee Total fee taken from the input, in hundredths of a bip.
+    function _priceAndSwapFee(address coin, bool zeroForOne) internal view returns (uint160 sqrtPrice, uint24 swapFee) {
+        uint24 protocolFees;
+        (sqrtPrice,, protocolFees, swapFee) = poolManager.getSlot0(hook.poolKey(coin).toId());
+        uint16 protocolFee = zeroForOne ? protocolFees.getZeroForOneFee() : protocolFees.getOneForZeroFee();
+        if (protocolFee != 0) swapFee = protocolFee.calculateSwapFee(swapFee);
+    }
+
+    /// @dev The part of an input that reaches the curve after `swapFee`.
+    function _lessFee(uint256 amountIn, uint24 swapFee) internal pure returns (uint256) {
+        return FullMath.mulDiv(amountIn, FEE_DENOMINATOR - swapFee, FEE_DENOMINATOR);
+    }
+
+    /// @dev Real quote backing the curve, as the hook itself counts it when it decides whether the
+    ///      floor can rise: what the position holds between its lower tick and the pool price, plus
+    ///      what waits idle outside it, plus what is lent out.
+    function _realQuote(IWavefrontHook.Market memory m, uint160 sqrtPrice) internal pure returns (uint256) {
+        uint160 sqrtLower = TickMath.getSqrtPriceAtTick(m.lowerTick);
+        uint256 inPosition =
+            sqrtPrice > sqrtLower ? SqrtPriceMath.getAmount1Delta(sqrtLower, sqrtPrice, m.liquidity, false) : 0;
+        return inPosition + m.idleQuote + m.totalDebt;
     }
 
     /// @dev Scales a raw quote-per-raw-coin price to an 18-decimal price of whole quote per whole coin.

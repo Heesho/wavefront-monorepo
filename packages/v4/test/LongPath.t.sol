@@ -79,7 +79,8 @@ contract LongPathTest is WavefrontFixture {
         }
         assertApproxEqRel(paid, v1Paid, PAYOUT_PARITY, "total paid to sellers");
         // what is not in the position is less than a tick spacing (0.1%) of what the market holds
+        // (the lens counts idle quote as part of what the market holds)
         uint256 real = lens.getCoinData(address(coin), address(0)).realQuote;
-        assertLe(_market(coin).idleQuote, (real + _market(coin).idleQuote) / 999 + 2, "quote left idle");
+        assertLe(_market(coin).idleQuote, real / 999 + 2, "quote left idle");
     }
 }

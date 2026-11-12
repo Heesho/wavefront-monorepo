@@ -6,9 +6,11 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 
@@ -22,6 +24,8 @@ import {IWavefrontHook} from "./interfaces/IWavefrontHook.sol";
 contract WavefrontRouter is IUnlockCallback {
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
+    using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
 
     /// @notice The Uniswap v4 PoolManager.
     IPoolManager public immutable poolManager;
@@ -95,6 +99,8 @@ contract WavefrontRouter is IUnlockCallback {
     }
 
     /// @notice Sells exactly `coinIn` of `coin` for quote.
+    /// @dev The sale stops at the bottom of the hook's position. If the price is already there, nothing
+    ///      is sold and zero is returned (or `Slippage` if `minQuoteOut` is not zero).
     /// @param coin Coin to sell.
     /// @param coinIn Coins to sell; the caller must have approved this router.
     /// @param minQuoteOut Minimum quote to receive.
@@ -118,19 +124,26 @@ contract WavefrontRouter is IUnlockCallback {
             abi.decode(data, (address, address, bool, uint256));
 
         PoolKey memory key = hook.poolKey(coin);
+        uint160 sqrtPriceLimit = TickMath.MAX_SQRT_PRICE - 1;
+        if (zeroForOne) {
+            // A sell stops at the bottom of the hook's position: there is no liquidity below it, and a
+            // swap sent further would walk the empty tick range to the end for nothing. With the price
+            // already on the bottom there is nothing to sell into, and no swap is made at all.
+            sqrtPriceLimit = TickMath.getSqrtPriceAtTick(hook.market(coin).lowerTick);
+            (uint160 sqrtPrice,,,) = poolManager.getSlot0(key.toId());
+            if (sqrtPrice <= sqrtPriceLimit) return abi.encode(uint256(0), uint256(0));
+        }
         BalanceDelta delta = poolManager.swap(
             key,
             SwapParams({
-                zeroForOne: zeroForOne,
-                amountSpecified: -amountIn.toInt256(),
-                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+                zeroForOne: zeroForOne, amountSpecified: -amountIn.toInt256(), sqrtPriceLimitX96: sqrtPriceLimit
             }),
             ""
         );
 
         (Currency currencyIn, Currency currencyOut) =
             zeroForOne ? (key.currency0, key.currency1) : (key.currency1, key.currency0);
-        // only what the pool actually consumed is charged, so a sell that exhausts the range fills partially
+        // only what the pool actually consumed is charged, so a sell that reaches the bottom fills partially
         uint256 paid = uint256(uint128(-(zeroForOne ? delta.amount0() : delta.amount1())));
         uint256 received = uint256(uint128(zeroForOne ? delta.amount1() : delta.amount0()));
 
