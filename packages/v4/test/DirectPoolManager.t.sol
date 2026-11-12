@@ -11,6 +11,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {Coin} from "../src/Coin.sol";
 import {WavefrontRouter} from "../src/WavefrontRouter.sol";
@@ -155,24 +156,106 @@ contract DirectPoolManagerTest is WavefrontFixture {
                          NOTHING BELOW THE POSITION
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice A sell when the price already sits on the bottom of the position fills nothing: the
-    ///         seller keeps their coins, the price ends where it started, and the router reports
-    ///         what was actually sold.
-    /// @dev The swap runs the price through the empty range to its limit and the hook brings it
-    ///      back, which costs the seller a few million gas. See the README's known limits.
+    /// @notice A sell through wavefront's router when the price already sits on the bottom of the
+    ///         position fills nothing: the seller keeps their coins, the price does not move, and
+    ///         the router reports what was actually sold.
+    /// @dev The router stops a sell at the position's lower tick, so here it makes no swap at all:
+    ///      the PoolManager emits no `Swap` and the call is cheap. It used to run the price through
+    ///      the empty range and cost about 2.2M gas, which is still what other routers do; see
+    ///      {test_knownLimit_directSellWithNothingBelow_isExpensiveAndThePriceIsRestored}.
     function test_sellWithNothingBelow_fillsNothingAndReportsIt() public {
         (Coin fresh,) = _launch(creator, 0);
         PoolKey memory freshKey = hook.poolKey(address(fresh));
         (uint160 priceBefore,,,) = IPoolManager(address(manager)).getSlot0(freshKey.toId());
 
+        vm.recordLogs();
         vm.expectEmit(address(router));
         emit WavefrontRouter.Sold(address(fresh), alice, 0, 0);
         vm.prank(alice);
+        uint256 gasBefore = gasleft();
         uint256 out = router.sell(address(fresh), 1e18, 0, 0);
+        uint256 gasUsed = gasBefore - gasleft();
 
         assertEq(out, 0);
         (uint160 priceAfter,,,) = IPoolManager(address(manager)).getSlot0(freshKey.toId());
+        assertEq(priceAfter, priceBefore, "the price moved");
+        assertEq(_swapEvents(vm.getRecordedLogs()), 0, "a swap was made");
+        assertLt(gasUsed, 200_000, "an empty sell was expensive");
+    }
+
+    /// @notice With the price on the bottom, a seller who asks for anything at all is refused, and
+    ///         the market is untouched: the next buy returns exactly what the lens quoted.
+    function test_sellWithNothingBelow_respectsTheMinimumAndLeavesTheMarketAlone() public {
+        (Coin fresh,) = _launch(creator, 0);
+
+        vm.expectRevert(WavefrontRouter.Slippage.selector);
+        vm.prank(alice);
+        router.sell(address(fresh), 1e18, 1, 0);
+
+        vm.prank(alice);
+        assertEq(router.sell(address(fresh), 1e18, 0, 0), 0);
+
+        uint256 quoted = lens.quoteBuy(address(fresh), 100 * ONE_USDC);
+        assertGt(quoted, 0);
+        assertEq(_buy(fresh, alice, 100 * ONE_USDC), quoted, "the buy after an empty sell");
+    }
+
+    /// @notice Documents a known limit rather than a guarantee. A router that sends the same empty
+    ///         sell with no price limit of its own (Uniswap's do) still fills nothing and leaves the
+    ///         price where it was, but the swap walks the empty tick range and the hook brings the
+    ///         price back, which costs the seller well over a million gas.
+    function test_knownLimit_directSellWithNothingBelow_isExpensiveAndThePriceIsRestored() public {
+        (Coin fresh,) = _launch(creator, 0);
+        PoolKey memory freshKey = hook.poolKey(address(fresh));
+        (uint160 priceBefore,,,) = IPoolManager(address(manager)).getSlot0(freshKey.toId());
+
+        SwapParams[] memory swaps = new SwapParams[](1);
+        swaps[0] = SwapParams({
+            zeroForOne: true, amountSpecified: -int256(1e18), sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+        });
+        vm.recordLogs();
+        vm.prank(alice);
+        uint256 gasBefore = gasleft();
+        trader.swap(freshKey, swaps);
+        uint256 gasUsed = gasBefore - gasleft();
+
+        (uint160 priceAfter,,,) = IPoolManager(address(manager)).getSlot0(freshKey.toId());
         assertEq(priceAfter, priceBefore, "price was not restored");
+        assertEq(fresh.balanceOf(address(manager)), fresh.totalSupply(), "coins left the pool");
+        assertEq(quote.balanceOf(alice), 1e15, "the empty sell paid something");
+        // the seller's swap to the limit, then the hook's swap back
+        assertEq(_swapEvents(vm.getRecordedLogs()), 2);
+        assertGt(gasUsed, 1_000_000, "no longer expensive: update the README's known limits");
+    }
+
+    /// @notice Stopping at the lower tick changes nothing a seller receives. Whatever share of her
+    ///         coins alice sells, with or without a loan having raised the lower tick, the router
+    ///         pays exactly what a sell sent straight to the PoolManager with no limit pays, and
+    ///         leaves the pool and the hook's books in the same state.
+    function testFuzz_routerSellLimit_changesNothingASellerReceives(uint256 sellBps, bool withDebt) public {
+        if (withDebt) _borrow(coin, bob, hook.creditOf(address(coin), bob) / 2);
+        uint256 coinIn = coin.balanceOf(alice) * bound(sellBps, 1, 10_000) / 10_000;
+
+        uint256 snapshot = vm.snapshotState();
+        SwapParams[] memory swaps = new SwapParams[](1);
+        swaps[0] = SwapParams({
+            zeroForOne: true, amountSpecified: -int256(coinIn), sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+        });
+        uint256 quoteBefore = quote.balanceOf(alice);
+        vm.prank(alice);
+        trader.swap(key, swaps);
+        uint256 directOut = quote.balanceOf(alice) - quoteBefore;
+        uint256 directCoinsLeft = coin.balanceOf(alice);
+        (uint160 directPrice,,,) = IPoolManager(address(manager)).getSlot0(key.toId());
+        bytes32 directBooks = keccak256(abi.encode(_market(coin)));
+        assertGt(directOut, 0, "the direct sell filled nothing");
+        vm.revertToState(snapshot);
+
+        assertEq(_sell(coin, alice, coinIn), directOut, "quote received");
+        assertEq(coin.balanceOf(alice), directCoinsLeft, "coins sold");
+        (uint160 routerPrice,,,) = IPoolManager(address(manager)).getSlot0(key.toId());
+        assertEq(routerPrice, directPrice, "pool price");
+        assertEq(keccak256(abi.encode(_market(coin))), directBooks, "the hook's books");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -229,6 +312,13 @@ contract DirectPoolManagerTest is WavefrontFixture {
                 + hook.feesOwed(address(coin), treasury),
             "coin claims"
         );
+    }
+
+    /// @dev Number of `Swap` events the PoolManager emitted among `logs`.
+    function _swapEvents(Vm.Log[] memory logs) internal view returns (uint256 count) {
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].emitter == address(manager) && logs[i].topics[0] == IPoolManager.Swap.selector) ++count;
+        }
     }
 
     function _randomSwaps(uint256 seed, uint256 round) internal view returns (SwapParams[] memory swaps) {
