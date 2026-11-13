@@ -1,0 +1,64 @@
+/* Wavefront site elements. Needs tokens/tokens.css loaded first. */
+
+.wf-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 14px/1 var(--wf-font-body);
+  color: var(--wf-ink);
+  background: var(--wf-surface);
+  border: 1px solid var(--wf-hairline);
+  border-radius: 10px;
+  padding: 11px 16px;
+  cursor: pointer;
+}
+.wf-button:hover { background: var(--wf-surface-2); }
+.wf-button:focus-visible { outline: 2px solid var(--wf-foam); outline-offset: 2px; }
+.wf-button--primary { background: var(--wf-tide); border-color: transparent; color: var(--wf-on-accent); }
+.wf-button--primary:hover { background: var(--wf-surf); }
+.wf-button--quiet { background: transparent; border-color: transparent; color: var(--wf-accent-text); }
+
+.wf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 11px/1 var(--wf-font-mono);
+  letter-spacing: var(--wf-tracking-label);
+  text-transform: uppercase;
+  color: var(--wf-ink-2);
+  background: var(--wf-surface-2);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.wf-chip--up { color: var(--wf-up); }
+.wf-chip--down { color: var(--wf-down); }
+.wf-chip--floor { color: var(--wf-foam); }
+
+.wf-card {
+  border: 1px solid var(--wf-hairline);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+  padding: 18px;
+}
+
+/* A loader: five blocks passing a wave along. */
+.wf-loader { display: inline-flex; gap: 3px; align-items: flex-end; height: 22px; }
+.wf-loader i {
+  width: 10px;
+  height: 10px;
+  border-radius: 22%;
+  background: var(--wf-tide);
+  animation: wf-wave 1.1s ease-in-out infinite;
+}
+.wf-loader i:nth-child(1) { background: var(--wf-deep); }
+.wf-loader i:nth-child(2) { animation-delay: 0.1s; }
+.wf-loader i:nth-child(3) { background: var(--wf-surf); animation-delay: 0.2s; }
+.wf-loader i:nth-child(4) { background: var(--wf-foam); animation-delay: 0.3s; }
+.wf-loader i:nth-child(5) { background: var(--wf-surf); animation-delay: 0.4s; }
+@keyframes wf-wave {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-10px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wf-loader i { animation: none; }
+}

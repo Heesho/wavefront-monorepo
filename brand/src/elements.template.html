@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wavefront site elements</title>
+    <link rel="icon" href="icons/favicon.svg" />
+    <link rel="stylesheet" href="tokens/tokens.css" />
+    <link rel="stylesheet" href="elements/wavefront.css" />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--wf-ground);
+        color: var(--wf-ink);
+        font: 400 15px/1.5 var(--wf-font-body);
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 1120px; margin: 0 auto; padding: 0 24px 96px; }
+      .hero { position: relative; border-bottom: 1px solid var(--wf-hairline); overflow: hidden; }
+      .hero canvas { display: block; width: 100%; touch-action: none; cursor: crosshair; }
+      .hero-copy { position: absolute; inset: 0 0 auto 0; max-width: 1120px; margin: 0 auto; padding: 36px 24px 0; pointer-events: none; }
+      .hero-copy img { height: 30px; display: block; }
+      .hero-copy h1 {
+        margin: 28px 0 10px;
+        max-width: 14ch;
+        font: 500 clamp(34px, 6vw, 64px) / 1 var(--wf-font-display);
+        letter-spacing: var(--wf-tracking-display);
+      }
+      .hero-copy p { margin: 0; max-width: 44ch; color: var(--wf-ink-2); font-size: 17px; }
+      .hero-bar { position: absolute; left: 0; right: 0; bottom: 0; max-width: 1120px; margin: 0 auto; padding: 0 24px 18px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .hero-bar .wf-chip { background: rgb(11 11 11 / 0.72); }
+      .hero-bar .wf-button { background: rgb(11 11 11 / 0.72); padding: 9px 13px; }
+      .hero-bar .wf-button:hover { background: var(--wf-surface-2); }
+      section { padding: 56px 0 0; }
+      h2 { margin: 0 0 8px; font: 500 30px/1.1 var(--wf-font-display); letter-spacing: var(--wf-tracking-display); }
+      .lead { margin: 0 0 24px; max-width: 66ch; color: var(--wf-muted); }
+      code { font: 400 13px/1.4 var(--wf-font-mono); color: var(--wf-ink-2); }
+      .label { font: 500 11px/1.4 var(--wf-font-mono); letter-spacing: var(--wf-tracking-label); text-transform: uppercase; color: var(--wf-muted); }
+      .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+      .tile { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 8px 12px; border: 1px solid var(--wf-hairline); border-radius: var(--wf-radius); background: var(--wf-surface); }
+      .tile svg { display: block; }
+      .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+      .coin { display: grid; gap: 14px; }
+      .coin-head { display: flex; align-items: center; gap: 12px; }
+      .coin-head b { display: block; font-weight: 500; font-size: 16px; }
+      .coin-head span { font: 500 12px/1.2 var(--wf-font-mono); color: var(--wf-muted); }
+      .coin-price { margin-left: auto; text-align: right; font: 500 15px/1.3 var(--wf-font-mono); }
+      .coin-spark { height: 44px; }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+      .note { margin: 12px 0 0; color: var(--wf-muted); font-size: 14px; }
+      #meet { display: block; width: 100%; height: 280px; border: 1px solid var(--wf-hairline); border-radius: var(--wf-radius); }
+      #flow { display: block; width: 100%; height: 200px; border: 1px solid var(--wf-hairline); border-radius: var(--wf-radius); }
+      .rule { display: block; width: 100%; height: 12px; object-fit: cover; object-position: left; }
+    </style>
+  </head>
+  <body>
+    <div class="hero">
+      <canvas id="sea" role="img" aria-label="A sea of blocks. Its level is the price and its bed is the floor."></canvas>
+      <div class="hero-copy">
+        <img src="logo/wavefront-lockup-on-dark.svg" alt="Wavefront" />
+        <h1>The floor only rises</h1>
+        <p>A living picture for the top of the site. Fluid is quote, blocks are coins, and the bed is the floor. Move over the water to stir it.</p>
+      </div>
+      <div class="hero-bar">
+        <span class="wf-chip wf-chip--floor" id="sea-event">Launch</span>
+        <button class="wf-button" type="button" data-sea="buy">Buy</button>
+        <button class="wf-button" type="button" data-sea="sell">Sell</button>
+        <button class="wf-button" type="button" data-sea="heal">Heal</button>
+        <button class="wf-button" type="button" data-sea="burn">Burn</button>
+      </div>
+    </div>
+
+    <main>
+      <section>
+        <h2>Coin and wallet glyphs</h2>
+        <p class="lead">
+          Every coin and wallet gets a picture, even with none uploaded: a pattern of blocks worked out from its address,
+          always the same for the same address. Squares for coins, discs for wallets. <code>glyph(seed)</code>
+        </p>
+        <div class="tiles" id="glyphs"></div>
+      </section>
+
+      <section>
+        <h2>Icons</h2>
+        <p class="lead">Thirteen icons on a 9 by 9 block grid. They take the colour of the text around them. <code>icon(name)</code>, or the files in <code>elements/icons/</code>.</p>
+        <div class="tiles" id="icons"></div>
+      </section>
+
+      <section>
+        <h2>Numbers in blocks</h2>
+        <p class="lead">Where a real chart would be noise: a price line and a share, counted in blocks. <code>spark(points)</code> and <code>meter(value)</code></p>
+        <div class="grid" id="coins"></div>
+      </section>
+
+      <section>
+        <h2>Buttons, chips and a loader</h2>
+        <p class="lead">One filled button a screen, in Tide. Chips are small mono labels. The loader passes a wave along five blocks. All in <code>elements/wavefront.css</code>.</p>
+        <div class="wf-card">
+          <div class="row">
+            <button class="wf-button wf-button--primary" type="button">Launch a coin</button>
+            <button class="wf-button" type="button">View the curve</button>
+            <button class="wf-button wf-button--quiet" type="button">Read the docs</button>
+            <span class="wf-chip wf-chip--floor">Floor +2.1%</span>
+            <span class="wf-chip wf-chip--up">+12.4%</span>
+            <span class="wf-chip wf-chip--down">−3.0%</span>
+            <span class="wf-chip">2% fee</span>
+            <span class="wf-loader" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i><i></i></span>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>The front</h2>
+        <p class="lead">The brand's signature: fluid setting into blocks, and blocks melting back. Quote is the fluid, coins are the blocks, and the front between them is the price. <code>front(options)</code> returns the shapes; draw them on a canvas or into an SVG.</p>
+        <canvas id="meet" role="img" aria-label="Smooth layered water on the left turning into blocks on the right, the boundary moving back and forth"></canvas>
+        <div class="row" style="margin-top: 12px">
+          <span class="wf-chip wf-chip--floor" id="meet-say">Drifting</span>
+          <button class="wf-button" type="button" data-front="buy">Buy</button>
+          <button class="wf-button" type="button" data-front="sell">Sell</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Layers</h2>
+        <p class="lead">The other way to draw, for things that flow: a Foam line with bands of water under it. Use it behind headers and at the foot of a page, and under any drawn curve. Never in the same picture as blocks.</p>
+        <canvas id="flow" role="img" aria-label="Smooth layered waves drifting slowly"></canvas>
+      </section>
+
+      <section>
+        <h2>Dividers and pattern</h2>
+        <p class="lead">Between major sections, a rule of blocks that comes loose at its end. Behind headers and on cards for sharing, the swell.</p>
+        <img class="rule" src="pattern/block-rule.svg" alt="" />
+        <img src="pattern/block-swell.svg" alt="" style="display: block; width: 100%; margin-top: 24px; border: 1px solid var(--wf-hairline); border-radius: var(--wf-radius)" />
+      </section>
+    </main>
+
+    <script type="module">
+      /*__ELEMENTS_MODULE__*/
+
+      const css = getComputedStyle(document.documentElement);
+      const token = (name) => css.getPropertyValue(`--wf-${name}`).trim();
+
+      /* ----------------------------------------------------------- gallery */
+
+      const COINS = ['Kelp', 'Riptide', 'Moonjelly', 'Driftwood', 'Undertow', 'Saltline', 'Brine', 'Tidepool'];
+      const WALLETS = ['0x8f3c41d2', '0x1b72aa90', '0xc09e5d17', '0x44d0be63', '0xe7a1f25c', '0x90b3c8d4'];
+      document.getElementById('glyphs').innerHTML =
+        COINS.map((name) => `<div class="tile">${glyph(name, { size: 56 })}<span class="label">${name}</span></div>`).join('') +
+        WALLETS.map((address) => `<div class="tile">${glyph(address, { size: 56, round: true })}<span class="label">${address.slice(0, 6)}…</span></div>`).join('');
+
+      document.getElementById('icons').innerHTML = Object.keys(ICONS)
+        .map((name) => `<div class="tile">${icon(name, { size: 36 })}<span class="label">${name}</span></div>`)
+        .join('');
+
+      // Made-up coins for the cards: a price walk from a seed, so they look the same on every load.
+      const walk = (seed, drift) => {
+        let value = 10;
+        return Array.from({ length: 26 }, (_, index) => {
+          value = Math.max(2, value + ((hash(`${seed}${index}`) % 1000) / 1000 - 0.5 + drift) * 2.4);
+          return value;
+        });
+      };
+      const CARDS = [
+        { name: 'Kelp', price: '$0.000637', change: '+12.4%', up: true, floor: '+2.1%', held: 0.52, drift: 0.14 },
+        { name: 'Riptide', price: '$0.002210', change: '−3.0%', up: false, floor: '+0.4%', held: 0.71, drift: -0.05 },
+        { name: 'Moonjelly', price: '$0.000129', change: '+1.8%', up: true, floor: '+0.1%', held: 0.18, drift: 0.04 },
+      ];
+      document.getElementById('coins').innerHTML = CARDS.map(
+        (card) => `<div class="wf-card coin">
+          <div class="coin-head">${glyph(card.name, { size: 44 })}<div><b>${card.name}</b><span>$${card.name.toUpperCase()}</span></div>
+            <div class="coin-price">${card.price}<br><span class="wf-chip wf-chip--${card.up ? 'up' : 'down'}">${card.change}</span></div></div>
+          <div class="coin-spark">${spark(walk(card.name, card.drift), { label: `${card.name} price, last 26 hours` })}</div>
+          <div>${meter(card.held, { label: `${Math.round(card.held * 100)}% of supply held` })}</div>
+          <div class="row"><span class="wf-chip wf-chip--floor">Floor ${card.floor}</span><span class="label">${Math.round(card.held * 100)}% of supply held</span></div>
+        </div>`,
+      ).join('');
+
+      /* --------------------------------------------------------------- sea */
+
+      /*
+       * The hero: water made of blocks, moved by a real wave equation, so it sloshes, reflects off the walls and
+       * settles like water does. It is a mood piece, not a chart, but its rules are the protocol's: buys raise the
+       * level, sells lower it and can never uncover the bed, heals and burns raise the bed itself, and the bed never
+       * goes back down.
+       */
+      const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const sea = document.getElementById('sea');
+      const ink = sea.getContext('2d');
+      // GAP and ROUND, the block's geometry, come from the elements module above.
+      const TONE = ['foam', 'surf', 'tide', 'tide', 'tide', 'deep', 'deep', 'deep'].map(token);
+      const TRENCH = token('trench');
+      let rows = 22; // set from the width, so the hero is tall enough to sit a headline above the water
+      let cols = 72;
+      let cell = 0;
+      let wide = 0;
+      let rise = new Float32Array(cols); // each column's height above the resting level, in rows
+      let pace = new Float32Array(cols);
+      const START = { level: 7, bed: 2 };
+      let level = START.level; // resting sea level, in rows: the price
+      let bed = START.bed; // rows of sea bed: the floor
+      let levelShown = level;
+      let bedShown = bed;
+      let loose = []; // blocks in the air: spray thrown off crests, embers rising off a burn
+      let shore = 0.55; // where the front sits, as a share of the width: fluid to its left, blocks to its right
+      let shoreShown = shore;
+      let setting = 0; // 1 just after the floor rises, fading: the newest row of the bed glowing as it sets
+
+      function size() {
+        if (!sea.clientWidth) return;
+        const ratio = window.devicePixelRatio || 1;
+        wide = sea.clientWidth;
+        const next = wide < 640 ? 40 : 72;
+        if (next !== cols) {
+          cols = next;
+          rise = new Float32Array(cols);
+          pace = new Float32Array(cols);
+        }
+        cell = wide / cols;
+        rows = Math.max(22, Math.ceil(580 / cell));
+        const tall = Math.round(cell * rows);
+        sea.style.height = `${tall}px`;
+        sea.width = Math.round(wide * ratio);
+        sea.height = Math.round(tall * ratio);
+        ink.setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
+
+      const say = (text) => {
+        document.getElementById('sea-event').textContent = text;
+      };
+      const push = (from, to, force) => {
+        for (let col = Math.max(0, from); col < Math.min(cols, to); col += 1) pace[col] += force;
+      };
+
+      const EVENTS = {
+        buy() {
+          level = Math.min(rows * 0.4, level + 1.3);
+          shore = Math.min(0.88, shore + 0.09);
+          push(0, 9, 13); // a surge in from the left: the front moving up the price
+          say('Buy · quote flows in, blocks melt into it');
+        },
+        sell() {
+          const next = Math.max(bed + 1.5, level - 1.2);
+          if (next >= level) return say('Sell · already at the floor');
+          level = next;
+          shore = Math.max(0.14, shore - 0.09);
+          push(cols - 9, cols, -12);
+          say('Sell · it sets back into blocks, never under the floor');
+        },
+        heal() {
+          bed += 0.6;
+          level += 0.6;
+          setting = 1;
+          push(0, cols, 5); // the whole sea is lifted at once
+          say('Heal · water sets into the floor');
+        },
+        burn() {
+          bed += 0.35;
+          level += 0.35;
+          for (let count = 0; count < 26; count += 1) {
+            const col = Math.floor(Math.random() * cols);
+            loose.push({ x: col, y: levelShown + rise[col], vx: (Math.random() - 0.5) * 0.6, vy: 2.5 + Math.random() * 3, life: 1, ember: true });
+          }
+          setting = 1;
+          say('Burn · coins go up in embers, the floor rises');
+        },
+      };
+
+      function event(name) {
+        EVENTS[name]();
+        // Once the bed has risen a long way, start a new coin so the picture never fills up.
+        if (bed > rows * 0.22) {
+          bed = START.bed;
+          level = START.level;
+          shore = 0.55;
+          say('Launch · a new coin');
+        }
+      }
+
+      function tick(step) {
+        // The wave equation on a row of columns: each is pulled toward its neighbours and back toward rest.
+        for (let round = 0; round < 2; round += 1) {
+          for (let col = 0; col < cols; col += 1) {
+            const left = rise[Math.max(0, col - 1)];
+            const right = rise[Math.min(cols - 1, col + 1)];
+            pace[col] += (190 * (left + right - 2 * rise[col]) - 5 * rise[col]) * (step / 2);
+            pace[col] *= 1 - 1.1 * (step / 2);
+          }
+          for (let col = 0; col < cols; col += 1) rise[col] += pace[col] * (step / 2);
+        }
+        levelShown += (level - levelShown) * Math.min(1, step * 2.2);
+        bedShown += (bed - bedShown) * Math.min(1, step * 1.6);
+        shoreShown += (shore - shoreShown) * Math.min(1, step * 1.8);
+        setting = Math.max(0, setting - step * 0.7);
+        // Crests moving fast throw spray.
+        for (let col = 1; col < cols - 1; col += 1) {
+          if (pace[col] > 7 && rise[col] > 0.6 && Math.random() < 0.05) {
+            loose.push({ x: col, y: levelShown + rise[col], vx: (Math.random() - 0.3) * 2, vy: 4 + Math.random() * 4, life: 1, ember: false });
+          }
+        }
+        for (const bit of loose) {
+          bit.x += bit.vx * step;
+          bit.y += bit.vy * step;
+          if (!bit.ember) bit.vy -= 14 * step;
+          bit.life -= step * (bit.ember ? 0.55 : 0.9);
+        }
+        loose = loose.filter((bit) => bit.life > 0 && (bit.ember || bit.y > levelShown - 1));
+      }
+
+      function box(x, y, edge) {
+        ink.beginPath();
+        if (ink.roundRect) ink.roundRect(x, y, edge, edge, Math.max(0, edge * ROUND));
+        else ink.rect(x, y, edge, edge);
+      }
+
+      function paint() {
+        if (cell < 2) return;
+        const tall = cell * rows;
+        const edge = cell * (1 - GAP);
+        const inset = (cell - edge) / 2;
+        ink.clearRect(0, 0, wide, tall);
+
+        // The water: fluid on the left, setting into blocks at the front. Each column of the wave gives a height,
+        // read smoothly between columns so the fluid side has no steps in it.
+        const swell = (x) => {
+          const at = Math.max(0, Math.min(cols - 1, x / cell - 0.5));
+          const left = Math.floor(at);
+          const right = Math.min(cols - 1, left + 1);
+          return rise[left] + (rise[right] - rise[left]) * (at - left);
+        };
+        const shapes = front({
+          width: wide,
+          height: tall,
+          unit: cell,
+          at: shoreShown * cols,
+          spread: 12,
+          surface: (x) => Math.max(bedShown + 1, Math.min(rows, levelShown + swell(x))) * cell,
+        });
+        ink.globalAlpha = 1;
+        drawFront(ink, shapes);
+
+        // The bed: the floor. Always blocks, because what sets into the floor stays. A row that has just set glows.
+        const bedRows = Math.floor(bedShown);
+        ink.fillStyle = token('ground');
+        ink.fillRect(0, tall - bedRows * cell, wide, bedRows * cell);
+        for (let col = 0; col < cols; col += 1) {
+          for (let row = 0; row < bedRows; row += 1) {
+            const top = row === bedRows - 1;
+            ink.fillStyle = top ? (setting > 0.55 ? TONE[0] : setting > 0.2 ? TONE[1] : token('muted')) : '#262626';
+            box(col * cell + inset, tall - (row + 1) * cell + inset, edge);
+            ink.fill();
+          }
+        }
+
+        for (const bit of loose) {
+          ink.globalAlpha = Math.max(0, bit.life) * 0.9;
+          ink.fillStyle = bit.ember ? (bit.life > 0.5 ? TONE[0] : TONE[1]) : TONE[0];
+          box(bit.x * cell + inset, tall - (bit.y + 1) * cell + inset, edge * (bit.ember ? 0.7 : 1));
+          ink.fill();
+        }
+        ink.globalAlpha = 1;
+      }
+
+      let before = performance.now();
+      function loop(time) {
+        requestAnimationFrame(loop);
+        const step = Math.min(0.033, (time - before) / 1000);
+        before = time;
+        tick(step);
+        paint();
+      }
+
+      // The pointer pushes the water down where it passes, the way a hand would.
+      let lastX = null;
+      sea.addEventListener('pointermove', (move) => {
+        const x = move.offsetX / cell;
+        const speed = lastX === null ? 0 : Math.min(3, Math.abs(x - lastX));
+        lastX = x;
+        for (let col = Math.max(0, Math.floor(x) - 2); col <= Math.min(cols - 1, Math.floor(x) + 2); col += 1) {
+          pace[col] -= (3 + speed * 5) * (1 - Math.abs(col - x) / 3);
+        }
+      });
+      sea.addEventListener('pointerleave', () => {
+        lastX = null;
+      });
+
+      const SCRIPT = ['buy', 'buy', 'heal', 'buy', 'sell', 'burn', 'buy', 'sell', 'sell', 'heal'];
+      let turn = 0;
+      let auto = null;
+      const play = () => {
+        clearInterval(auto);
+        auto = setInterval(() => {
+          event(SCRIPT[turn % SCRIPT.length]);
+          turn += 1;
+        }, 2800);
+      };
+      for (const button of document.querySelectorAll('[data-sea]')) {
+        button.addEventListener('click', () => {
+          event(button.dataset.sea);
+          play(); // the script carries on a beat after your press
+        });
+      }
+
+      new ResizeObserver(() => {
+        size();
+        paint();
+      }).observe(sea);
+      size();
+      if (still) paint();
+      else {
+        requestAnimationFrame(loop);
+        play();
+      }
+
+      /* ------------------------------------------------------------- front */
+
+      // Fluid on the left, blocks on the right, and the front between them moving as trades come in.
+      const meet = document.getElementById('meet');
+      const tip = meet.getContext('2d');
+      let frontAt = null;
+      let frontGoal = null;
+      let frontSpeed = 0;
+      let frontTime = performance.now();
+      function meetPaint(time) {
+        const ratio = window.devicePixelRatio || 1;
+        const across = meet.clientWidth;
+        const down = 280;
+        if (!across) return;
+        if (meet.width !== Math.round(across * ratio)) {
+          meet.width = Math.round(across * ratio);
+          meet.height = Math.round(down * ratio);
+        }
+        const unit = Math.max(11, across / 76);
+        const columns = across / unit;
+        if (frontGoal === null) frontGoal = frontAt = columns * 0.5;
+        const step = Math.min(0.034, (time - frontTime) / 1000);
+        frontTime = time;
+        frontSpeed += (38 * (frontGoal - frontAt) - 6 * frontSpeed) * step;
+        frontAt += frontSpeed * step;
+        const seconds = time / 1000;
+        const surface = (x) => down * 0.56 + unit * (1.7 * Math.sin(x * 0.008 + seconds * 0.7) + 0.7 * Math.sin(x * 0.021 - seconds * 1.1 + 1));
+        const shapes = front({ width: across, height: down, unit, at: frontAt + 1.6 * Math.sin(seconds * 0.5), spread: 11, surface });
+        tip.setTransform(ratio, 0, 0, ratio, 0, 0);
+        tip.clearRect(0, 0, across, down);
+        drawFront(tip, shapes);
+      }
+      const FRONT_MOVES = {
+        buy: [0.14, 'Buy · quote flows in, coins melt into the pool'],
+        sell: [-0.14, 'Sell · coins come back and set into blocks'],
+      };
+      function frontMove(name) {
+        if (frontGoal === null) return;
+        const columns = meet.clientWidth / Math.max(11, meet.clientWidth / 76);
+        const [share, words] = FRONT_MOVES[name];
+        frontGoal = Math.max(9, Math.min(columns - 9, frontGoal + columns * share));
+        document.getElementById('meet-say').textContent = words;
+      }
+      for (const button of document.querySelectorAll('[data-front]')) {
+        button.addEventListener('click', () => frontMove(button.dataset.front));
+      }
+      const FRONT_SCRIPT = ['buy', 'buy', 'sell', 'buy', 'sell', 'sell', 'sell', 'buy'];
+      let frontTurn = 0;
+      function meetLoop(time) {
+        meetPaint(time);
+        if (!still) requestAnimationFrame(meetLoop);
+      }
+      requestAnimationFrame(meetLoop);
+      if (!still) {
+        setInterval(() => {
+          frontMove(FRONT_SCRIPT[frontTurn % FRONT_SCRIPT.length]);
+          frontTurn += 1;
+        }, 3200);
+      }
+
+      /* ------------------------------------------------------------ layers */
+
+      // The other way to draw: water in section, as smooth bands that follow one line.
+      const flow = document.getElementById('flow');
+      const wash = flow.getContext('2d');
+      const BANDS = [[0, 'surf'], [0.7, 'tide'], [2.4, 'deep'], [5, 'trench']].map(([drop, name]) => [drop * 13, token(name)]);
+      function flowPaint(time) {
+        const ratio = window.devicePixelRatio || 1;
+        const across = flow.clientWidth;
+        const down = 200;
+        if (!across) return;
+        if (flow.width !== Math.round(across * ratio)) {
+          flow.width = Math.round(across * ratio);
+          flow.height = Math.round(down * ratio);
+        }
+        wash.setTransform(ratio, 0, 0, ratio, 0, 0);
+        wash.clearRect(0, 0, across, down);
+        const seconds = time / 1000;
+        const line = (x) => 76 + 26 * Math.sin(x * 0.006 + seconds * 0.5) + 11 * Math.sin(x * 0.017 - seconds * 0.8 + 1.3);
+        for (const [drop, colour] of BANDS) {
+          wash.beginPath();
+          wash.moveTo(0, down);
+          for (let x = 0; x <= across + 6; x += 6) wash.lineTo(x, Math.min(down, line(x) + drop));
+          wash.lineTo(across, down);
+          wash.closePath();
+          wash.fillStyle = colour;
+          wash.fill();
+        }
+        wash.beginPath();
+        for (let x = 0; x <= across + 6; x += 6) wash.lineTo(x, line(x));
+        wash.strokeStyle = token('foam');
+        wash.lineWidth = 3;
+        wash.lineJoin = 'round';
+        wash.stroke();
+      }
+      function flowLoop(time) {
+        flowPaint(time);
+        if (!still) requestAnimationFrame(flowLoop);
+      }
+      requestAnimationFrame(flowLoop);
+    </script>
+  </body>
+</html>
