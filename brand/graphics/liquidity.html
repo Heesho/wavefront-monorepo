@@ -591,9 +591,10 @@ function front({ width, height, unit, at, spread = 10, surface, sample = 6 }) {
       // Fluid side: block-shaped notches, up to about four cells in ten at the front.
       for (let row = 0; row < Math.ceil(depth) + 1; row += 1) {
         if (roll(col, row) < share * 0.85) {
-          // A hair larger than the cell, so no thread of fluid is left between two notches.
-          const bleed = unit * 0.03;
-          holes.push({ x: col * unit - bleed, y: height - (row + 1) * unit - bleed, w: unit + 2 * bleed, h: unit + 2 * bleed, r: unit * 0.2 });
+          // Exactly the size and place of a block, so a notch reads as a block that has come out of the fluid.
+          const gap = GAP * unit;
+          const size = unit - gap;
+          holes.push({ x: col * unit + gap / 2, y: height - (row + 1) * unit + gap / 2, w: size, h: size, r: size * ROUND });
         }
       }
       continue;
