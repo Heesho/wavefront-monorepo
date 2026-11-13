@@ -236,54 +236,8 @@ function hash(seed) {
 }
 const chance = (seed) => (hash(seed) % 10000) / 10000;
 
-/**
- * The block swell: a sea of blocks with the wave line on top, breaking apart toward its leading edge the way the
- * Glaze mark does. One unit per cell; `rows` is the tallest the swell can stand.
- */
-function swell({ cols, rows, calmUntil = 0.72 }) {
-  const paint = (depth) =>
-    depth === 0
-      ? COLOR.foam
-      : depth === 1
-        ? COLOR.surf
-        : depth <= 3
-          ? COLOR.tide
-          : depth === 4
-            ? COLOR.deep
-            : COLOR.trench;
-  let out = '';
-  for (let x = 0; x < cols; x += 1) {
-    const t = x / (cols - 1);
-    const level =
-      rows * 0.52 +
-      rows * 0.3 * Math.sin(t * Math.PI * 2 * 1.25 + 0.9) +
-      rows * 0.07 * Math.sin(t * Math.PI * 2 * 3.1 + 2);
-    // Never thinner than two blocks, so there is always water under the wave line.
-    const height = Math.max(2, Math.min(rows, Math.round(level)));
-    const breaking = t <= calmUntil ? 0 : (t - calmUntil) / (1 - calmUntil);
-    for (let depth = 0; depth < height; depth += 1) {
-      const y = rows - height + depth;
-      if (breaking > 0 && chance(`${x},${y}`) < breaking ** 1.6) continue;
-      out += rect(x + GAP / 2, y + GAP / 2, 1 - GAP, (1 - GAP) * ROUND, { fill: paint(depth) });
-    }
-    // Spray: a loose block or two above the wave line where it breaks.
-    if (breaking > 0 && chance(`s${x}`) < 0.4 * (1 - breaking)) {
-      const y = rows - height - 1 - (hash(`h${x}`) % 2);
-      if (y >= 0) out += rect(x + GAP / 2, y + GAP / 2, 1 - GAP, (1 - GAP) * ROUND, { fill: COLOR.surf, opacity: 0.7 });
-    }
-  }
-  return out;
-}
-
-function swellFile() {
-  const cols = 50;
-  const rows = 8;
-  const cell = 24;
-  return svg(cols * cell, rows * cell, `<g transform="scale(${cell})">${swell({ cols, rows })}</g>`, 'Block swell');
-}
-
 /*
- * Layers: the brand's second way to draw, for things that flow rather than things you count. A line in Foam with
+ * Fluid: how the market is drawn. A line in Foam with
  * water under it in section: Surf, Tide, Deep, then Trench, each band following the line and roughly twice as thick
  * as the one above. `drop` is how far below the line a band starts, in units of `step`.
  */
@@ -304,43 +258,36 @@ function layers(line, width, height, step) {
   );
 }
 
-/** The front as SVG markup: fluid at the left setting into blocks, which come loose at the far right. */
-let frontBands = 0;
-function frontBand({ width, height, unit, at, spread, surface, loosen = true, from = 0, fade = () => 1 }) {
-  const { polygons, holes, rects } = elements.front({ width, height, unit, at, spread, surface });
+/*
+ * The sea over the floor, the kit's pattern: the market as fluid, a line with water under it, over a floor of blocks
+ * that steps up from left to right. Blocks below, fluid above, and a clear band between them.
+ */
+let seaBands = 0;
+function seaFloorBand({ width, height, unit, steps, lift }) {
   const cols = Math.ceil(width / unit);
-  const loose = ({ col, row }) => {
-    const edge = (col - (cols - 10)) / 10;
-    return loosen && edge > 0 && chance(`f${col},${row}`) < edge ** 1.5;
-  };
-  const pour = (list) => list.map(({ fill, points }) => `<path d="M${points.map(([x, y]) => `${n(x)} ${n(y)}`).join('L')}Z" fill="${fill}"/>`).join('');
-  const id = `front-${(frontBands += 1)}`;
-  const cells = (list) => list.map(({ x, y, w, h, r }) => `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="${n(r)}"/>`).join('');
-  // The notches are cut out of the fluid with a mask, so whatever is behind shows through them.
-  const body =
-    (holes.length
-      ? `<mask id="${id}"><rect width="${n(width)}" height="${n(height)}" fill="#fff"/><g fill="#000">${cells(holes)}</g></mask><g mask="url(#${id})">${pour(polygons)}</g>`
-      : pour(polygons)) +
-    rects
-      .filter((shape) => !loose(shape))
-      .map((shape) => {
-        const opacity = shape.alpha * fade(shape);
-        return `<rect x="${n(shape.x)}" y="${n(shape.y)}" width="${n(shape.w)}" height="${n(shape.h)}" rx="${n(shape.r)}" fill="${shape.fill}"${opacity < 0.995 ? ` opacity="${n(opacity)}"` : ''}/>`;
-      })
-      .join('');
-  // `from` cuts the picture off on the left, for where something else stands there.
-  return from > 0 ? `<clipPath id="${id}-from"><rect x="${n(from)}" y="0" width="${n(width - from)}" height="${n(height)}"/></clipPath><g clip-path="url(#${id}-from)">${body}</g>` : body;
+  const floorRows = (col) => 1 + Math.floor((col / cols) * steps);
+  // The water stands `lift` blocks over the floor on average, and rolls gently, never touching it.
+  const tall = (x) =>
+    unit * (1 + steps * (x / width) + lift + 1.3 * Math.sin((x / width) * Math.PI * 2 * 1.25 + 0.9) + 0.4 * Math.sin((x / width) * Math.PI * 2 * 3.1 + 2));
+  let floor = '';
+  let above = '';
+  for (let col = 0; col < cols; col += 1) {
+    const rows = floorRows(col);
+    for (let row = 0; row < rows; row += 1) {
+      const below = rows - 1 - row;
+      const fill = below === 0 ? COLOR.surf : below <= 2 ? COLOR.tide : below <= 6 ? COLOR.deep : COLOR.trench;
+      floor += rect(col * unit + (unit * GAP) / 2, height - (row + 1) * unit + (unit * GAP) / 2, unit * (1 - GAP), unit * (1 - GAP) * ROUND, { fill });
+    }
+    above += `<rect x="${n(col * unit)}" y="0" width="${n(unit + 0.5)}" height="${n(height - (rows + 0.45) * unit)}"/>`;
+  }
+  const id = `sea-${(seaBands += 1)}`;
+  return `<clipPath id="${id}">${above}</clipPath><g clip-path="url(#${id})">${layers((x) => height - tall(x), width, height, unit)}</g>${floor}`;
 }
 
-/** A gentle swell, as the height of the water at x, for bands `width` across. */
-const swellLine = (width, mid, reach) => (x) =>
-  mid + reach * Math.sin((x / width) * Math.PI * 2 * 1.25 + 0.9) + reach * 0.3 * Math.sin((x / width) * Math.PI * 2 * 3.1 + 2);
-
-/** The front, held still: fluid on the left setting into blocks on the right. */
-function frontFile() {
+function seaFloorFile() {
   const width = 1200;
   const height = 208;
-  return svg(width, height, frontBand({ width, height, unit: 16, at: 36, spread: 14, surface: swellLine(width, 118, 30) }), 'The front: fluid setting into blocks');
+  return svg(width, height, seaFloorBand({ width, height, unit: 16, steps: 5, lift: 3.4 }), 'The sea over the floor: fluid above, blocks below');
 }
 
 function layerSwellFile() {
@@ -380,7 +327,7 @@ function og() {
       text('wordmark', 72 + mark * 1.28, 64 + mark / 2 + (WORD.capHeight * fontSize) / 2, fontSize, COLOR.ink) +
       text('tagline', 72, 312, 60, COLOR.ink) +
       text('descriptor', 74, 358, 17, COLOR.muted) +
-      `<g transform="translate(0 ${height - 192})">${frontBand({ width, height: 192, unit: cell, at: 24, spread: 14, surface: swellLine(width, 104, 32) })}</g>`,
+      `<g transform="translate(0 ${height - 192})">${seaFloorBand({ width, height: 192, unit: cell, steps: 3, lift: 2.6 })}</g>`,
     'Wavefront: launch a coin with a rising floor',
   );
 }
@@ -403,7 +350,7 @@ function banner() {
       place(tide('full', { disc: null }), left, top, mark) +
       text('wordmark', left + mark * 1.28, top + mark / 2 + (WORD.capHeight * fontSize) / 2, fontSize, COLOR.ink) +
       text('descriptor', (width - TEXT.descriptor.width * descriptorSize) / 2, top + mark + 56, descriptorSize, COLOR.muted) +
-      `<g transform="translate(0 ${height - 150})">${frontBand({ width, height: 150, unit: cell, at: 30, spread: 16, surface: swellLine(width, 84, 26) })}</g>`,
+      `<g transform="translate(0 ${height - 150})">${seaFloorBand({ width, height: 150, unit: cell, steps: 2, lift: 1.8 })}</g>`,
     'Wavefront',
   );
 }
@@ -411,15 +358,16 @@ function banner() {
 /* ------------------------------------------------------------- mechanics */
 
 /*
- * Stills of what each action does to a coin's liquidity, before and after, drawn to scale by the same model and
- * layout as the animated page (src/liquidity.mjs). Both halves of a still share one grid, so they compare directly.
+ * Stills of what each action does, on the one picture every mechanic is explained with: the price curve, with the
+ * floor as blocks and the market as fluid above it (curveSvg in src/liquidity.mjs). Each shows the market after the
+ * action, with a dotted line and a hollow dot for where the curve and the price were before.
  */
-const STILL_GRID = curve.view(56, 6, 9);
+const STILL = { cols: 56, rows: 18 };
 
 function traded() {
   const market = curve.launch();
-  curve.buy(market, 60_000);
-  curve.buy(market, 60_000);
+  curve.buy(market, 40_000);
+  curve.buy(market, 40_000);
   return market;
 }
 
@@ -428,80 +376,45 @@ const STILLS = {
   sell: (market) => curve.sell(market, curve.read(market).free * 0.5),
   heal: (market) => curve.heal(market, 60_000),
   burn: (market) => curve.burn(market, curve.read(market).circulating * 0.3),
-  borrow: (market) => curve.borrow(market, curve.credit(market, curve.read(market).free * 0.5)),
+  // Many ordinary holders, not one large one: a hundred equal wallets each take their own credit.
+  borrow: (market) => curve.borrow(market, 100 * curve.credit(market, (curve.read(market).free * 0.5) / 100)),
 };
 
-/** A market's shape with its height rounded to whole rows: a still has no motion to carry a part-row. */
-function stillShape(market) {
-  const form = curve.shape(market, STILL_GRID);
-  return { ...form, rows: Math.round(form.rows) };
+/** Before and after one action, and the price at the top of the picture. */
+function stillPair(name) {
+  const before = traded();
+  const after = traded();
+  STILLS[name](after);
+  const floor = curve.read(after).floor;
+  const peak = Math.max(curve.read(before).price, curve.read(after).price);
+  // The floor stands as many whole blocks tall as still leaves the price room under the top.
+  const floorRows = [4, 3, 2, 1].find((count) => peak <= (0.86 * floor * STILL.rows) / count) ?? 1;
+  return { before, after, ceiling: (floor * STILL.rows) / floorRows };
 }
-
-/** One market as blocks, `rows` cells tall, one unit per cell. */
-function curveBlocks(market, rows) {
-  const size = 1 - GAP;
-  const outline = (x, y, extra) =>
-    `<rect x="${n(x + GAP / 2 + 0.03)}" y="${n(y + GAP / 2 + 0.03)}" width="${n(size - 0.06)}" height="${n(size - 0.06)}" rx="${n(size * ROUND)}" fill="none" stroke-width="0.06" ${extra}/>`;
-  let out = '';
-  for (const block of curve.blocks(stillShape(market), STILL_GRID)) {
-    const x = block.col;
-    const y = rows - 1 - block.row;
-    if (block.kind === 'virtual') out += outline(x, y, `stroke="${COLOR.ink}" stroke-opacity="${n(0.22 * block.cover)}"`);
-    else if (block.kind === 'lent') out += outline(x, y, `stroke="${COLOR.surf}" stroke-dasharray="0.2 0.14"`);
-  }
-  // The pool itself: quote as fluid up to the price, where it sets into the coins as blocks.
-  const form = stillShape(market);
-  out += frontBand({
-    width: STILL_GRID.cols,
-    height: rows,
-    unit: 1,
-    at: form.priceCol,
-    spread: 6,
-    surface: () => form.rows,
-    from: Math.round(form.lentCol),
-    fade: ({ col }) => (col + 0.5 > form.priceCol ? Math.max(0.16, Math.min(1, (form.priceCol / (col + 0.5)) ** 2)) : 1),
-  });
-  return out;
-}
+const STILL_PAIRS = Object.fromEntries(Object.keys(STILLS).map((name) => [name, stillPair(name)]));
+const CURVE_COLOURS = { ground: COLOR.ground, muted: COLOR.muted, foam: COLOR.foam, surf: COLOR.surf, tide: COLOR.tide, deep: COLOR.deep, trench: COLOR.trench };
 
 function still(name) {
   const width = 1200;
   const height = 675;
   const margin = 64;
-  const cell = (width - 2 * margin) / STILL_GRID.cols;
-  const before = traded();
-  const after = traded();
-  STILLS[name](after);
-  const rows = Math.max(stillShape(before).rows, stillShape(after).rows);
-
-  const panel = (market, label, top) => {
-    const form = stillShape(market);
-    const base = top + 16 + rows * cell;
-    const tick = (col, line, key, colour) => {
-      const x = margin + col * cell;
-      return (
-        `<path d="M${n(x)} ${n(base + 4)}V${n(base + 14 + line * 18)}" stroke="${colour}" stroke-width="1"/>` +
-        text(key, x + 7, base + 16 + line * 18, 11, colour)
-      );
-    };
-    return (
-      text(label, margin, top, 13, COLOR.muted) +
-      `<g transform="translate(${margin} ${n(top + 16)}) scale(${n(cell)})">${curveBlocks(market, rows)}</g>` +
-      tick(form.floorCol, 1, 'label-floor', COLOR.muted) +
-      tick(form.priceCol, 0, 'label-price', COLOR.foam)
-    );
-  };
-
-  const first = 172;
-  const second = first + 16 + rows * cell + 78;
+  const top = 176;
+  const cell = (width - 2 * margin) / STILL.cols;
+  const { before, after, ceiling } = STILL_PAIRS[name];
+  const now = curve.read(after);
+  const priceX = margin + (now.circulating / (1e9 / STILL.cols)) * cell;
+  const priceY = top + (STILL.rows - (now.price / ceiling) * STILL.rows) * cell;
+  const floorY = top + (STILL.rows - (now.floor / ceiling) * STILL.rows) * cell;
+  const priceWide = TEXT['label-price'].width * 12;
   return svg(
     width,
     height,
     `<rect width="${width}" height="${height}" fill="${COLOR.ground}"/>` +
       place(tide('full', { disc: null }), width - margin - 44, 66, 44) +
       text(`still-${name}`, margin, 108, 42, COLOR.ink) +
-      panel(before, 'label-before', first) +
-      panel(after, 'label-after', second),
+      `<g transform="translate(${margin} ${top}) scale(${n(cell)})">${curve.curveSvg(after, { ...STILL, ceiling, colours: CURVE_COLOURS, ghost: before, id: `above-${name}` })}</g>` +
+      text('label-price', priceX - priceWide - 16 > margin ? priceX - priceWide - 16 : priceX + 16, priceY - 12, 12, COLOR.foam) +
+      text('label-floor', width - margin - TEXT['label-floor'].width * 12, floorY - 10, 12, COLOR.surf),
     TEXT[`still-${name}`].text,
   );
 }
@@ -647,10 +560,9 @@ const FILES = {
   'icons/favicon.svg': markFile('micro'),
   'icons/app-icon.svg': appIcon(0.66),
   'icons/app-icon-maskable.svg': appIcon(0.56),
-  'pattern/block-swell.svg': swellFile(),
   'pattern/block-rule.svg': ruleFile(),
   'pattern/layer-swell.svg': layerSwellFile(),
-  'pattern/front.svg': frontFile(),
+  'pattern/sea-floor.svg': seaFloorFile(),
   'social/og.svg': og(),
   'social/x-banner.svg': banner(),
   ...Object.fromEntries(Object.keys(STILLS).map((name) => [`graphics/${name}.svg`, still(name)])),
@@ -716,25 +628,14 @@ for (const name of Object.keys(elements.ICONS)) {
 }
 FILES['elements.html'] = page('src/elements.template.html', { '/*__ELEMENTS_MODULE__*/': ELEMENTS.replace(/^export /gmu, '') });
 
-// The elements, wrapped so their names can't collide with a page's own: pages reach them as WF.front and so on.
-const NAMESPACE = `const WF = (() => {\n${ELEMENTS.replace(/^export /gmu, '')}\nreturn { front, drawFront, palette, glyph, icon, meter, spark };\n})();`;
 const MODEL = readFileSync(join(ROOT, 'src/liquidity.mjs'), 'utf8').replace(/^export /gmu, '');
-// The guidelines page draws its mechanics pictures itself from these shapes. Embedding the five stills as images
-// would more than triple the page, past what some previews will open.
-const stillShapes = Object.fromEntries(
-  Object.keys(STILLS).map((name) => {
-    const before = traded();
-    const after = traded();
-    STILLS[name](after);
-    return [name, { before: stillShape(before), after: stillShape(after) }];
-  }),
-);
+// The guidelines page draws its mechanics pictures itself, from the same before-and-after markets as the stills.
+const STILL_DATA = `const STILL = ${JSON.stringify(STILL)};\n      const STILL_PAIRS = ${JSON.stringify(STILL_PAIRS)};`;
 FILES['guidelines.html'] = page('src/guidelines.template.html', {
-  '/*__ELEMENTS_NAMESPACE__*/': NAMESPACE,
   '/*__LIQUIDITY_MODULE__*/': MODEL,
-  '/*__STILL_SHAPES__*/': `const STILL_GRID = ${JSON.stringify(STILL_GRID)};\n      const STILL_SHAPES = ${JSON.stringify(stillShapes)};`,
+  '/*__STILL_SHAPES__*/': STILL_DATA,
 });
-FILES['graphics/liquidity.html'] = page('src/liquidity.template.html', { '/*__LIQUIDITY_MODULE__*/': MODEL, '/*__ELEMENTS_NAMESPACE__*/': NAMESPACE });
+FILES['graphics/liquidity.html'] = page('src/liquidity.template.html', { '/*__LIQUIDITY_MODULE__*/': MODEL });
 const FLOOR = readFileSync(join(ROOT, 'src/floor.mjs'), 'utf8').replace(/^import .*$/gmu, '').replace(/^export /gmu, '');
 FILES['graphics/floor.html'] = page('src/floor.template.html', { '/*__FLOOR_MODULES__*/': `${MODEL}\n${FLOOR}` });
 
@@ -765,16 +666,15 @@ function kit({ bare = false } = {}) {
     .replace(/:root\[data-theme='light'\] \{[\s\S]*?\n\}\n/u, '');
   const parts = [
     part('guidelines', 'src/guidelines.template.html', {
-      '/*__ELEMENTS_NAMESPACE__*/': NAMESPACE,
       '/*__LIQUIDITY_MODULE__*/': MODEL,
-      '/*__STILL_SHAPES__*/': `const STILL_GRID = ${JSON.stringify(STILL_GRID)};\n      const STILL_SHAPES = ${JSON.stringify(stillShapes)};`,
+      '/*__STILL_SHAPES__*/': STILL_DATA,
     }),
     part('elements', 'src/elements.template.html', { '/*__ELEMENTS_MODULE__*/': ELEMENTS.replace(/^export /gmu, '') }),
     part('floor', 'src/floor.template.html', { '/*__FLOOR_MODULES__*/': `${MODEL}\n${FLOOR}` }),
-    part('liquidity', 'src/liquidity.template.html', { '/*__LIQUIDITY_MODULE__*/': MODEL, '/*__ELEMENTS_NAMESPACE__*/': NAMESPACE }),
+    part('liquidity', 'src/liquidity.template.html', { '/*__LIQUIDITY_MODULE__*/': MODEL }),
   ];
   const stops = [
-    ['Logo', 'mark'], ['Colour', 'colour'], ['Type', 'type'], ['Blocks', 'blocks'], ['The front', 'layers'], ['Mechanics', 'mechanics'],
+    ['Logo', 'mark'], ['Colour', 'colour'], ['Type', 'type'], ['Rules', 'rules'], ['Blocks', 'blocks'], ['Mechanics', 'mechanics'],
     ['Hero', 'kit-elements'], ['Glyphs and icons', 'glyphs'], ['Rising floor', 'kit-floor'], ['Curve', 'kit-liquidity'], ['Social', 'kit-social'],
   ];
   const full = `<!doctype html>

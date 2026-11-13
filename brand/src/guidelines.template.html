@@ -234,11 +234,11 @@
           Anything beyond the logo is built from the same block: patterns, dividers, meters. A shape made of blocks may
           come loose at its leading edge, and nowhere else.
         </p>
-        <img class="swell" src="pattern/block-swell.svg" alt="The block swell pattern" />
+        <img class="swell" src="pattern/layer-swell.svg" alt="Fluid on its own: a line with bands of water under it" />
         <div class="grid" style="margin-top: 16px">
           <div class="card">
-            <h3>Swell</h3>
-            <p>The background pattern. The wave line is always Foam and there is always water under it.</p>
+            <h3>Fluid</h3>
+            <p>The market on its own, for headers and page footers. With a floor under it, see the rules above.</p>
           </div>
           <div class="card">
             <svg class="meter" id="meter" viewBox="0 0 24 1" role="img" aria-label="A block meter, 15 of 24 filled"></svg>
@@ -253,54 +253,52 @@
         </div>
       </section>
 
-      <section id="layers">
-        <h2>The front</h2>
+      <section id="rules">
+        <h2>The rules</h2>
         <p class="lead">
-          Wavefront draws in two ways, and its signature is the place where they meet. Blocks are for things you
-          count: the logo, coins, icons, meters. Fluid, in smooth layers, is for things that flow: a price curve, a
-          background. At a front, fluid sets into blocks and blocks melt back into fluid. That is what a trade does at
-          the price, with quote on one side and coins on the other.
+          Every Wavefront picture is drawn by the same few rules, so the same thing always looks the same. They come
+          from the protocol: a floor that is locked in, and a market that moves above it.
         </p>
-        <img class="swell" src="pattern/front.svg" alt="Fluid on the left setting into blocks on the right" />
-        <div class="grid" style="margin-top: 16px">
-          <div class="card">
-            <h3>How fluid is built</h3>
-            <p>A line in Foam, with water under it in section: Surf, Tide, Deep, then Trench. Each band follows the line and is about twice as thick as the one above it. Flat colour only: no gradients, no glow.</p>
-          </div>
-          <div class="card">
-            <h3>How they meet</h3>
-            <p>The fluid's edge is bitten into block-shaped notches, more of them toward the front. Past the front, loose blocks gather into solid rows. Nothing fades: every part is fluid, a block, or empty.</p>
-          </div>
-          <div class="card">
-            <h3>The rule</h3>
-            <p>Fluid and blocks meet side by side, at a front. Never draw a line or a fluid shape on top of blocks. The logo is always blocks: it is the coin, and coins are the side that has set.</p>
-          </div>
+        <img class="swell" src="pattern/sea-floor.svg" alt="Fluid above a floor of blocks that steps up from left to right" />
+        <div class="scroll" style="margin-top: 20px">
+          <table>
+            <thead>
+              <tr><th>Rule</th><th>Why</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Blocks are the floor</td><td>Anything at or below the floor price is solid: locked in, never taken back.</td></tr>
+              <tr><td>Fluid is the market</td><td>Anything above the floor price is liquid: a Foam line with bands of water under it, moving with every trade.</td></tr>
+              <tr><td>Up is price</td><td>In every picture the floor sits at the bottom and the market above it.</td></tr>
+              <tr><td>Filled holds money, outlined is empty</td><td>A filled block is quote that is really there. An outline is lent out, not yet deposited, or the floor ahead of coins nobody has bought.</td></tr>
+              <tr><td>Fluid sets into blocks, never the reverse</td><td>Every trade sets a little of the market into the floor, and the floor only rises. A row that has just set glows in Foam.</td></tr>
+              <tr><td>Fluid never touches blocks</td><td>The water stops a little short of the floor, and is never drawn over a block.</td></tr>
+              <tr><td>Blocks for anything fixed</td><td>The logo, glyphs, icons and meters are blocks too: identities and counts.</td></tr>
+              <tr><td>The colours keep their order</td><td>Foam on top, then Surf, Tide, Deep and Trench, in fluid and in blocks alike.</td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
       <section id="mechanics">
         <h2>Mechanics</h2>
         <p class="lead">
-          Pictures of the protocol are drawn to scale from its own formulas, never sketched. Price runs left to right,
-          depth runs up, and one block is a fixed amount of quote, so each action is a change of shape you can count.
-          Each card shows before on top and after underneath.
+          One picture explains every mechanic: the price curve, price up the side against coins held along the bottom,
+          drawn to scale from the protocol's formulas. Under the floor price it is blocks, the quote that guarantees
+          the floor for the coins held. Above it, up to the curve, it is fluid. Each card shows the market after the
+          action, with a dotted line where the curve was before.
         </p>
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr))">
-          <div class="card"><div class="shot" data-still="buy" role="img" aria-label="A buy pushes the front right"></div><h3>Buy</h3><p>Quote fills in behind the front as it moves up the price.</p></div>
-          <div class="card"><div class="shot" data-still="sell" role="img" aria-label="A sell pulls the front back, never past the floor"></div><h3>Sell</h3><p>The front falls back. The floor is its left wall.</p></div>
-          <div class="card"><div class="shot" data-still="heal" role="img" aria-label="A heal deepens the pool and lifts the floor"></div><h3>Heal</h3><p>More quote, nothing taken out: taller, and the wall moves in.</p></div>
-          <div class="card"><div class="shot" data-still="burn" role="img" aria-label="A burn thins the pool and lifts both prices"></div><h3>Burn</h3><p>Fewer coins: thinner, with both the floor and the price further right.</p></div>
-          <div class="card"><div class="shot" data-still="borrow" role="img" aria-label="A loan borrows the quote at the floor"></div><h3>Borrow</h3><p>A loan takes the quote sitting at the floor, against locked coins. The floor price stays put.</p></div>
+          <div class="card"><div class="shot" data-still="buy" role="img" aria-label="A buy moves up the curve"></div><h3>Buy</h3><p>The price moves up the curve. More floor fills in under the coins bought, and more market above it.</p></div>
+          <div class="card"><div class="shot" data-still="sell" role="img" aria-label="A sell moves back down, never under the floor"></div><h3>Sell</h3><p>The price moves back down the curve. It can reach the floor and never go under it.</p></div>
+          <div class="card"><div class="shot" data-still="heal" role="img" aria-label="A heal lifts the curve and the floor"></div><h3>Heal</h3><p>Quote goes in and nothing comes out. The whole curve lifts, and the floor with it.</p></div>
+          <div class="card"><div class="shot" data-still="burn" role="img" aria-label="A burn shrinks the supply and lifts the floor"></div><h3>Burn</h3><p>Coins are destroyed. The supply ends sooner, and the floor rises under the coins that are left.</p></div>
+          <div class="card"><div class="shot" data-still="borrow" role="img" aria-label="A loan hollows the floor under its coins"></div><h3>Borrow</h3><p>A loan takes the floor under the coins borrowed against, and leaves the market above alone. The floor price stays put.</p></div>
           <div class="card">
             <h3>In motion</h3>
             <p>
-              <code>graphics/liquidity.html</code> is the same picture animated: it plays through trades, heals, burns
-              and loans, and has buttons to try each one. When liquidity moves it sloshes and settles; when the pool is
-              rebuilt, the blocks lift out and drop back in.
-            </p>
-            <p style="margin-top: 10px">
-              <code>graphics/floor.html</code> is the floor through time: a price line over a floor that climbs in
-              steps and never comes back down.
+              <code>graphics/liquidity.html</code> is this picture live, with buttons for each action.
+              <code>graphics/floor.html</code> is the floor through time: a price line
+              over a floor that climbs in steps and never comes back down.
             </p>
           </div>
         </div>
@@ -323,7 +321,7 @@
           <li>Put the disc-less mark on a light ground, or on anything lighter than the surface colour.</li>
           <li>Change the wave line, the fill level or the block spacing.</li>
           <li>Stretch, rotate, outline or add shadows and glows.</li>
-          <li>Draw a line or a fluid shape over blocks. The two meet side by side at a front, or not at all.</li>
+          <li>Draw fluid below the floor or blocks above it, or let the two touch. Blocks are the floor; fluid is the market over it.</li>
           <li>Set the name in another face, or type it as "WaveFront" or "Wave Front". It is one word: Wavefront.</li>
         </ul>
       </section>
@@ -344,7 +342,7 @@
               <tr><td>Social profile picture</td><td><code>social/avatar-400.png</code></td></tr>
               <tr><td>Link preview image</td><td><code>social/og-1200x630.png</code></td></tr>
               <tr><td>X header</td><td><code>social/x-banner-1500x500.png</code></td></tr>
-              <tr><td>Background patterns, in blocks and in layers</td><td><code>pattern/front.svg</code>, <code>pattern/block-swell.svg</code>, <code>pattern/layer-swell.svg</code>, <code>pattern/block-rule.svg</code></td></tr>
+              <tr><td>Background patterns, in blocks and in layers</td><td><code>pattern/sea-floor.svg</code>, <code>pattern/layer-swell.svg</code>, <code>pattern/block-rule.svg</code></td></tr>
               <tr><td>Glyphs, icons, meters and price lines for the site</td><td><code>elements/wavefront-elements.mjs</code>, <code>elements/wavefront.css</code>, <code>elements/icons/</code>; see <code>elements.html</code></td></tr>
               <tr><td>The floor rising under the price, live and as a still</td><td><code>graphics/floor.html</code>, <code>graphics/floor.svg</code>, <code>graphics/png/floor-1200x675.png</code></td></tr>
               <tr><td>The protocol's mechanics, animated</td><td><code>graphics/liquidity.html</code></td></tr>
@@ -426,49 +424,13 @@
 
       /*__STILL_SHAPES__*/
 
-      /*__ELEMENTS_NAMESPACE__*/
-
-      // The mechanics pictures: the same blocks as the stills in graphics/, drawn here to keep the page small.
+      // The mechanics pictures: the same curve picture as the stills in graphics/, drawn here to keep the page small.
       const style = getComputedStyle(document.documentElement);
-      const colour = (name) => style.getPropertyValue(`--wf-${name}`).trim();
-      const gap = Number(colour('block-gap'));
-      const size = 1 - gap;
-      const corner = size * Number(colour('block-round'));
-      const square = (x, y, rest) =>
-        `<rect x="${x + gap / 2}" y="${y + gap / 2}" width="${size}" height="${size}" rx="${corner}" ${rest}/>`;
-      let clips = 0;
-      const path = ({ fill, points }) => `<path d="M${points.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join('L')}Z" fill="${fill}"/>`;
-      const cell = ({ x, y, w, h, r }, rest = '') => `<rect x="${x.toFixed(3)}" y="${y.toFixed(3)}" width="${w.toFixed(3)}" height="${h.toFixed(3)}" rx="${r.toFixed(3)}" ${rest}/>`;
-      const panel = (form, rows) => {
-        // Outlines for the virtual quote and anything lent out; then the pool, fluid quote setting into block coins.
-        const outlines = blocks(form, STILL_GRID)
-          .map((block) => {
-            const y = rows - 1 - block.row;
-            if (block.kind === 'virtual') return square(block.col, y, `fill="none" stroke="${colour('ink')}" stroke-opacity="0.22" stroke-width="0.06"`);
-            if (block.kind === 'lent') return square(block.col, y, `fill="none" stroke="${colour('surf')}" stroke-width="0.06" stroke-dasharray="0.2 0.14"`);
-            return '';
-          })
-          .join('');
-        const shapes = WF.front({ width: STILL_GRID.cols, height: rows, unit: 1, at: form.priceCol, spread: 6, surface: () => form.rows });
-        const id = `clip-${(clips += 1)}`;
-        const start = Math.round(form.lentCol);
-        const thin = (col) => (col + 0.5 > form.priceCol ? Math.max(0.16, Math.min(1, (form.priceCol / (col + 0.5)) ** 2)) : 1);
-        return (
-          outlines +
-          `<clipPath id="${id}"><rect x="${start}" y="0" width="${STILL_GRID.cols - start}" height="${rows}"/></clipPath>` +
-          `<mask id="${id}-holes"><rect width="${STILL_GRID.cols}" height="${rows}" fill="#fff"/><g fill="#000">${shapes.holes.map((hole) => cell(hole)).join('')}</g></mask>` +
-          `<g clip-path="url(#${id})"><g mask="url(#${id}-holes)">${shapes.polygons.map(path).join('')}</g>` +
-          shapes.rects.map((shape) => cell(shape, `fill="${shape.fill}" opacity="${(shape.alpha * thin(shape.col)).toFixed(2)}"`)).join('') +
-          `</g>`
-        );
-      };
+      const colours = Object.fromEntries(['ground', 'muted', 'foam', 'surf', 'tide', 'deep', 'trench'].map((name) => [name, style.getPropertyValue(`--wf-${name}`).trim()]));
       for (const frame of document.querySelectorAll('[data-still]')) {
-        const { before, after } = STILL_SHAPES[frame.dataset.still];
-        const rows = Math.max(before.rows, after.rows);
-        const between = 1.5;
-        frame.innerHTML =
-          `<svg viewBox="0 0 ${STILL_GRID.cols} ${rows * 2 + between}" aria-hidden="true">${panel(before, rows)}` +
-          `<g transform="translate(0 ${rows + between})">${panel(after, rows)}</g></svg>`;
+        const name = frame.dataset.still;
+        const { before, after, ceiling } = STILL_PAIRS[name];
+        frame.innerHTML = `<svg viewBox="0 0 ${STILL.cols} ${STILL.rows}" aria-hidden="true">${curveSvg(after, { ...STILL, ceiling, colours, ghost: before, id: `above-${name}` })}</svg>`;
       }
     </script>
   </body>
