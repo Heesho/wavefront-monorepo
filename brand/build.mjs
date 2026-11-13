@@ -210,6 +210,61 @@ function wordmark(ink) {
   return svg(right * fontSize, (bottom - top) * fontSize, text('wordmark', 0, -top * fontSize, fontSize, ink));
 }
 
+/* ---------------------------------------------------------- by GlazeCorp */
+
+/*
+ * Wavefront is a GlazeCorp product. The GlazeCorp mark is GlazeCorp's own artwork, kept in logo/glazecorp/ and never
+ * redrawn here: it is placed as it is, in one of its approved flat fills (Ash on dark, Ink on light).
+ */
+const GLAZE_MARK = readFileSync(join(ROOT, 'logo/glazecorp/glazecorp-mark-128.png')).toString('base64');
+const GLAZE_RATIO = 525 / 512; // the mark's width over its height
+let glazeMarks = 0;
+
+/** The GlazeCorp mark, `height` tall with its top-left corner at (x, y), in one flat colour. */
+function glazeMark(x, y, height, colour) {
+  const id = `glaze-${(glazeMarks += 1)}`;
+  const [red, green, blue] = [1, 3, 5].map((at) => n(parseInt(colour.slice(at, at + 2), 16) / 255));
+  return (
+    `<filter id="${id}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 ${red} 0 0 0 0 ${green} 0 0 0 0 ${blue} 0 0 0 1 0"/></filter>` +
+    `<image href="data:image/png;base64,${GLAZE_MARK}" x="${n(x)}" y="${n(y)}" width="${n(height * GLAZE_RATIO)}" height="${n(height)}" filter="url(#${id})"/>`
+  );
+}
+
+/** "by [mark] GlazeCorp" on one line, starting at x with its baseline at `baseline`. Returns the markup and its width. */
+function endorsement(x, baseline, size, { quiet, strong }) {
+  const by = TEXT['endorse-by'];
+  const name = TEXT['endorse-glazecorp'];
+  const markTall = size * 0.92;
+  const markX = x + by.width * size + size * 0.34;
+  const nameX = markX + markTall * GLAZE_RATIO + size * 0.22;
+  return {
+    markup:
+      text('endorse-by', x, baseline, size, quiet) +
+      glazeMark(markX, baseline - (name.capHeight * size) / 2 - markTall / 2, markTall, strong) +
+      text('endorse-glazecorp', nameX, baseline, size, strong),
+    width: nameX - x + name.bounds[2] * size,
+  };
+}
+
+/** The Wavefront lockup with "by GlazeCorp" under the name: for first mention, footers and launch material. */
+function byGlazeCorp({ markOptions, ink, quiet }) {
+  const mark = 100;
+  const fontSize = mark * 0.86;
+  const left = mark * 1.28;
+  const small = 30;
+  const line = mark + 14 + small * 0.72;
+  const signed = endorsement(left + 2, line, small, { quiet, strong: ink });
+  const width = Math.max(left + WORD.bounds[2] * fontSize, left + 2 + signed.width);
+  return svg(
+    width,
+    line + small * 0.26,
+    place(tide('full', markOptions), 0, 0, mark) +
+      text('wordmark', left, mark / 2 + (WORD.capHeight * fontSize) / 2, fontSize, ink) +
+      signed.markup,
+    'Wavefront by GlazeCorp',
+  );
+}
+
 /* ----------------------------------------------------------------- icons */
 
 /** A full-bleed square for app icons and avatars. `scale` is the mark's box as a share of the square. */
@@ -325,6 +380,7 @@ function og() {
     `<rect width="${width}" height="${height}" fill="${COLOR.ground}"/>` +
       place(tide('full', { disc: null }), 72, 64, mark) +
       text('wordmark', 72 + mark * 1.28, 64 + mark / 2 + (WORD.capHeight * fontSize) / 2, fontSize, COLOR.ink) +
+      endorsement(72 + mark * 1.28 + 2, 64 + mark + 30, 24, { quiet: COLOR.muted, strong: COLOR.ink }).markup +
       text('tagline', 72, 312, 60, COLOR.ink) +
       text('descriptor', 74, 358, 17, COLOR.muted) +
       `<g transform="translate(0 ${height - 192})">${seaFloorBand({ width, height: 192, unit: cell, steps: 3, lift: 2.6 })}</g>`,
@@ -349,7 +405,8 @@ function banner() {
     `<rect width="${width}" height="${height}" fill="${COLOR.ground}"/>` +
       place(tide('full', { disc: null }), left, top, mark) +
       text('wordmark', left + mark * 1.28, top + mark / 2 + (WORD.capHeight * fontSize) / 2, fontSize, COLOR.ink) +
-      text('descriptor', (width - TEXT.descriptor.width * descriptorSize) / 2, top + mark + 56, descriptorSize, COLOR.muted) +
+      endorsement(left + mark * 1.28 + 3, top + mark + 34, 30, { quiet: COLOR.muted, strong: COLOR.ink }).markup +
+      text('descriptor', (width - TEXT.descriptor.width * descriptorSize) / 2, top + mark + 96, descriptorSize, COLOR.muted) +
       `<g transform="translate(0 ${height - 150})">${seaFloorBand({ width, height: 150, unit: cell, steps: 2, lift: 1.8 })}</g>`,
     'Wavefront',
   );
@@ -557,6 +614,8 @@ const FILES = {
   'logo/wavefront-lockup-on-light.svg': lockup(onLight),
   'logo/wavefront-stacked-on-dark.svg': stacked(onDark),
   'logo/wavefront-stacked-on-light.svg': stacked(onLight),
+  'logo/wavefront-by-glazecorp-on-dark.svg': byGlazeCorp({ ...onDark, quiet: COLOR.muted }),
+  'logo/wavefront-by-glazecorp-on-light.svg': byGlazeCorp({ ...onLight, quiet: LIGHT.muted }),
   'icons/favicon.svg': markFile('micro'),
   'icons/app-icon.svg': appIcon(0.66),
   'icons/app-icon-maskable.svg': appIcon(0.56),
@@ -585,6 +644,8 @@ const PNGS = [
   ['icons/icon-maskable-512.png', 'icons/app-icon-maskable.svg', 512, 512],
   ['logo/png/wavefront-lockup-on-dark.png', 'logo/wavefront-lockup-on-dark.svg', null, 200],
   ['logo/png/wavefront-lockup-on-light.png', 'logo/wavefront-lockup-on-light.svg', null, 200],
+  ['logo/png/wavefront-by-glazecorp-on-dark.png', 'logo/wavefront-by-glazecorp-on-dark.svg', null, 288],
+  ['logo/png/wavefront-by-glazecorp-on-light.png', 'logo/wavefront-by-glazecorp-on-light.svg', null, 288],
   ['social/avatar-400.png', 'icons/app-icon.svg', 400, 400],
   ['social/og-1200x630.png', 'social/og.svg', 1200, 630],
   ['social/x-banner-1500x500.png', 'social/x-banner.svg', 1500, 500],
@@ -673,9 +734,25 @@ function kit({ bare = false } = {}) {
     part('floor', 'src/floor.template.html', { '/*__FLOOR_MODULES__*/': `${MODEL}\n${FLOOR}` }),
     part('liquidity', 'src/liquidity.template.html', { '/*__LIQUIDITY_MODULE__*/': MODEL }),
   ];
+  // Every SVG the kit makes, on one shelf per kind.
+  const KINDS = [
+    ['Logo', (file) => file.startsWith('logo/'), false],
+    ['Icons', (file) => file.startsWith('icons/') || file.startsWith('elements/icons/'), false],
+    ['Mechanics', (file) => file.startsWith('graphics/'), true],
+    ['Patterns', (file) => file.startsWith('pattern/'), true],
+    ['Social', (file) => file.startsWith('social/'), true],
+  ];
+  const onLight = (file) => /on-light|mono-ink|wordmark-ink/u.test(file);
+  const shelves = KINDS.map(([kind, belongs, wide]) => {
+    const files = Object.keys(FILES).filter((file) => file.endsWith('.svg') && belongs(file));
+    const items = files
+      .map((file) => `<figure><div class="kit-stage${onLight(file) ? ' light' : ''}"><img src="${image(file)}" alt="" /></div><figcaption>${file}</figcaption></figure>`)
+      .join('');
+    return `<h3>${kind}</h3><div class="kit-shelf${wide ? ' wide' : ''}">${items}</div>`;
+  }).join('\n      ');
   const stops = [
-    ['Logo', 'mark'], ['Colour', 'colour'], ['Type', 'type'], ['Rules', 'rules'], ['Blocks', 'blocks'], ['Mechanics', 'mechanics'],
-    ['Hero', 'kit-elements'], ['Glyphs and icons', 'glyphs'], ['Rising floor', 'kit-floor'], ['Curve', 'kit-liquidity'], ['Social', 'kit-social'],
+    ['Logo', 'mark'], ['Colour', 'colour'], ['Type', 'type'], ['Rules', 'rules'], ['Blocks', 'blocks'], ['Mechanics', 'mechanics'], ['Messaging', 'messaging'],
+    ['Hero', 'kit-elements'], ['Glyphs and icons', 'glyphs'], ['Rising floor', 'kit-floor'], ['Curve', 'kit-liquidity'], ['Every graphic', 'kit-social'],
   ];
   const full = `<!doctype html>
 <!-- Generated by brand/build.mjs from the templates in src/. Edit those, not this file. -->
@@ -711,6 +788,16 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .kit-social { max-width: 1120px; margin: 0 auto; padding: 56px 24px 96px; color: var(--wf-ink); font: 400 15px/1.5 var(--wf-font-body); border-top: 0; }
 .kit-social h2 { margin: 0 0 8px; font: 500 34px/1.1 var(--wf-font-display); letter-spacing: var(--wf-tracking-display); }
 .kit-social p { margin: 0 0 24px; max-width: 66ch; color: var(--wf-muted); }
+.kit-social h3 { margin: 32px 0 12px; font: 500 16px/1.3 var(--wf-font-body); }
+.kit-shelf { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.kit-shelf.wide { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+.kit-shelf figure { margin: 0; min-width: 0; }
+.kit-stage { display: flex; align-items: center; justify-content: center; min-height: 132px; padding: 18px; border: 1px solid var(--wf-hairline); border-radius: var(--wf-radius); background: var(--wf-ground); }
+.kit-stage.light { background: #ffffff; border-color: transparent; }
+.kit-shelf .kit-stage img { display: block; width: 100%; height: 96px; object-fit: contain; border: 0; border-radius: 0; }
+.kit-shelf.wide .kit-stage { padding: 0; min-height: 0; overflow: hidden; }
+.kit-shelf.wide .kit-stage img { height: auto; }
+.kit-shelf figcaption { overflow-wrap: anywhere; }
 .kit-social figure { margin: 0 0 24px; }
 .kit-social figure img { display: block; width: 100%; border: 1px solid var(--wf-hairline); border-radius: var(--wf-radius); }
 .kit-social figcaption { margin-top: 8px; font: 500 11px/1.4 var(--wf-font-mono); letter-spacing: var(--wf-tracking-label); text-transform: uppercase; color: var(--wf-muted); }
@@ -733,17 +820,9 @@ ${parts.map((piece) => piece.css).join('\n')}
     ${parts.map((piece) => piece.body).join('\n')}
     <hr style="border: 0; border-top: 1px solid var(--wf-hairline); margin: 0" />
     <div class="kit-social" id="kit-social">
-      <h2>Social and icons</h2>
-      <p>What a link, a profile and a browser tab show. The files are in <code style="font: 400 13px var(--wf-font-mono)">social/</code> and <code style="font: 400 13px var(--wf-font-mono)">icons/</code>.</p>
-      <figure><img src="${image('social/og.svg')}" alt="Link preview image" /><figcaption>Link preview · 1200 × 630</figcaption></figure>
-      <figure><img src="${image('social/x-banner.svg')}" alt="X header" /><figcaption>X header · 1500 × 500</figcaption></figure>
-      <figure><img src="${image('graphics/floor.svg')}" alt="The floor only rises, as a still" /><figcaption>A still for posts · 1200 × 675</figcaption></figure>
-      <div class="icons">
-        <figure><img src="${image('icons/app-icon.svg')}" height="120" alt="" style="border-radius: 22%" /><figcaption>App icon and avatar</figcaption></figure>
-        <figure><img src="${image('logo/wavefront-mark.svg')}" height="120" alt="" /><figcaption>Token icon</figcaption></figure>
-        <figure><img src="${image('logo/wavefront-mark-small.svg')}" height="40" alt="" /><figcaption>Small</figcaption></figure>
-        <figure><img src="${image('logo/wavefront-mark-micro.svg')}" height="16" alt="" /><figcaption>Favicon</figcaption></figure>
-      </div>
+      <h2>Every graphic</h2>
+      <p>Everything in the kit, by file name. PNG versions of the icons, lockups, stills and social images sit beside these in the same folders.</p>
+      ${shelves}
     </div>
     <script>
       for (const button of document.querySelectorAll('[data-go]')) {
