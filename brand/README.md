@@ -4,7 +4,7 @@ Logos, icons, social images, colours and type for Wavefront. Open [`guidelines.h
 
 Wavefront is drawn in the block language it shares with GlazeCorp: rounded blocks with a gap of 14% of the cell and corners at 22% of the block. The mark is the Tide, a coin made of blocks and filled to a wave line. The palette is Afterglow: indigo, blue, violet, pink and amber, running from the deepest water up to the wave line, on a `#0b0b0b` ground. The accent is the violet, `#b14cff`.
 
-There are two ways to draw, and the brand's signature is where they meet. Blocks are for things you count: the logo, coins, icons, meters. Fluid, a Foam line with smooth bands of water under it, is for things that flow: a price curve, a background. At a front, fluid sets into blocks and blocks melt back, which is what a trade does at the price. The two meet side by side; neither is ever drawn on top of the other.
+Every picture follows the same rules. Blocks are the floor: anything at or below the floor price, locked in. Fluid is the market: anything above it. Up is price, so the floor sits at the bottom and the market over it. A filled block holds money and an outline is empty. Fluid sets into blocks and never the reverse, and the two never touch. The logo, glyphs, icons and meters are blocks too. The guidelines page has the full table.
 
 ## What to use
 
@@ -21,7 +21,7 @@ There are two ways to draw, and the brand's signature is where they meet. Blocks
 | Social profile picture | `social/avatar-400.png` |
 | Link preview image | `social/og-1200x630.png` |
 | X header | `social/x-banner-1500x500.png` |
-| Background patterns, in blocks and in layers | `pattern/front.svg`, `pattern/block-swell.svg`, `pattern/layer-swell.svg`, `pattern/block-rule.svg` |
+| Background patterns, in blocks and in layers | `pattern/sea-floor.svg`, `pattern/layer-swell.svg`, `pattern/block-rule.svg` |
 | Glyphs, icons, meters and price lines for the site | `elements/wavefront-elements.mjs`, `elements/wavefront.css`, `elements/icons/`; gallery in `elements.html` |
 | The floor rising under the price, live and as a still | `graphics/floor.html`, `graphics/floor.svg`, `graphics/png/floor-1200x675.png` |
 | The protocol's mechanics, animated | `graphics/liquidity.html` |
@@ -44,7 +44,7 @@ The wordmark and the two lines of text on the social images are stored as outlin
 
 ## Mechanics graphics
 
-The pictures in `graphics/` are drawn to scale from the protocol's formulas by [`src/liquidity.mjs`](src/liquidity.mjs): price (as its square root) runs left to right, liquidity runs up, and one block is a fixed amount of quote. The outlined blocks left of the floor are the virtual quote, the solid ones up to the price are the quote in the pool, and the blue ones beyond are the pool's coins. `graphics/liquidity.html` animates it, alongside the price curve itself (price against coins held, where the area under the curve is the quote in the pool), and lets you press buy, sell, heal, burn, borrow and repay.
+The pictures in `graphics/` are drawn to scale from the protocol's formulas by [`src/liquidity.mjs`](src/liquidity.mjs). The main one is the price curve: price up the side against coins held along the bottom, with blocks under the floor price (the quote that guarantees the floor for the coins held) and fluid above it up to the curve. A loan hollows the floor blocks under the coins borrowed against. `graphics/liquidity.html` is that picture live, with buttons for buy, sell, heal, burn, borrow and repay.
 
 The hero at the top of `elements.html` is different: a sea of blocks moved by a wave equation. Its level stands for the price and its bed for the floor, but it is a mood piece and not to scale.
 

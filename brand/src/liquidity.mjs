@@ -1,17 +1,16 @@
 /*
- * Wavefront's curve as a picture made of blocks. Used by the animated graphic (graphics/liquidity.html) and by the
- * stills build.mjs draws, so both show the same thing.
+ * Wavefront's market as pictures, drawn to scale by the brand's rules: blocks are the floor, fluid is the market
+ * above it, and price runs up the side. Used by the live graphic (graphics/liquidity.html), by the stills build.mjs
+ * draws and by the guidelines page, so all three show the same thing.
  *
- * The picture is not a metaphor. Lay the square root of the price along the bottom and the liquidity L up the side.
- * Then, from docs/bonding-curve.md and packages/v4/src/libraries/CurveMath.sol:
+ * Nothing here is a metaphor. The formulas are the protocol's, from docs/bonding-curve.md and
+ * packages/v4/src/libraries/CurveMath.sol. With liquidity L:
  *
- *   virtual quote = L × √floor            the rectangle left of the floor: counted, never deposited
- *   real quote    = L × (√price − √floor) the rectangle between the floor and the price: what the pool holds
- *   pool coins    = L ÷ √price            everything right of the price, thinning as the price climbs
+ *   virtual quote = L × √floor            counted in the price, never deposited
+ *   real quote    = L × (√price − √floor) what the pool holds
+ *   pool coins    = L ÷ √price            thinning as the price climbs
  *
- * So one block is a fixed amount of quote, the price is the front where quote meets coins, and every mechanic is a
- * change of that shape: a buy pushes the front right, a heal makes the shape taller and moves its left wall in, a
- * burn makes it shorter and moves both walls right, and a loan lifts out the slice at the floor.
+ * The picture is the curve (curveSvg, further down): price up the side against coins held along the bottom.
  */
 
 const FEE = 0.02; // of every trade
@@ -114,78 +113,89 @@ export function repay(market) {
   return amount;
 }
 
-/* ---------------------------------------------------------------- layout */
+/* ----------------------------------------------------------------- curve */
 
-/** How the reserves map onto a grid of blocks: `cols` wide, with the launch standing `launchRows` tall. */
-export function view(cols = 56, launchRows = 7, floorCol = 9) {
-  const start = read(launch());
-  return { cols, rootPerCol: start.floorRoot / floorCol, liquidityPerRow: start.liquidity / launchRows };
-}
+/*
+ * The curve picture, the one every mechanic is explained with: price up the side against coins held along the
+ * bottom. With k = virtual quote × supply, the price when `held` coins are out is k ÷ (supply − held)².
+ *
+ *   the floor     blocks under the floor price, across the coins held. Real quote: every coin bought was paid for at
+ *                 the floor or more, and this is the part that guarantees it. Loans come out of here, so the blocks
+ *                 under coins borrowed against are hollow.
+ *   the market    fluid, from the floor up to the curve: what buyers paid above the floor.
+ *   ahead         one row of empty blocks along the floor, out to the end of the supply, and the curve as a line.
+ */
 
-/** The shape to draw, in block units: how tall, and where the floor, the lent slice and the price fall. */
-export function shape(market, grid) {
-  const now = read(market);
-  return {
-    rows: now.liquidity / grid.liquidityPerRow,
-    floorCol: now.floorRoot / grid.rootPerCol,
-    lentCol: now.lentRoot / grid.rootPerCol,
-    priceCol: now.priceRoot / grid.rootPerCol,
-  };
-}
+/** The price when `held` coins are out. */
+export const priceAt = (market, held) => (market.virtualQuote * market.maxSupply) / Math.max(1, market.maxSupply - held) ** 2;
 
-/** The quote one block stands for. */
-export const blockValue = (grid) => grid.rootPerCol * grid.liquidityPerRow;
-
-function hash(seed) {
-  let value = 0x811c9dc5;
-  for (let index = 0; index < seed.length; index += 1) {
-    value ^= seed.charCodeAt(index);
-    value = Math.imul(value, 0x01000193) >>> 0;
-  }
-  return value >>> 0;
-}
-export const chance = (seed) => (hash(seed) % 10000) / 10000;
-
-const LEAN = 2.4; // how many columns the top of the front runs ahead of the bottom: a wave leaning into its travel
+/** How many coins a loan of `debt` hollows the floor under: the loan divided by the floor price. */
+export const hollowed = (market) => market.debt / (market.virtualQuote / market.maxSupply);
 
 /**
- * Every block of the picture, bottom row first. Each has a column and a row, a `kind`, and for blocks on the front a
- * `quote` share between 0 and 1 so the renderer can blend the two sides as the front passes through.
- *
- *   virtual  left of the floor: an outline, because nothing was ever deposited there
- *   lent     the slice of the position at the floor, borrowed out
- *   quote    real quote in the pool; `depth` counts down from the surface, 0 being the wave line and -1 spray
- *   coin     coins in the pool; `strength` thins with the price, as L ÷ √price does
+ * The curve picture as SVG markup, one unit a block, `cols` across (the launch supply) and `rows` tall, with
+ * `ceiling` the price at the top. Pick a ceiling that makes the floor a whole number of rows and its blocks are
+ * square. `ghost` is an earlier state of the market, drawn as a dotted curve to show what changed.
  */
-export function blocks(form, grid, { ripple = () => 0 } = {}) {
-  const out = [];
-  for (let col = 0; col < grid.cols; col += 1) {
-    const centre = col + 0.5;
-    const inWater = centre >= form.lentCol && centre < form.priceCol;
-    const height = Math.max(1, form.rows + (inWater ? ripple(col) : 0));
-    const full = Math.floor(height + 1e-9);
-    const top = Math.ceil(height - 1e-9);
-    for (let row = 0; row < top; row += 1) {
-      // A fraction of a row still shows: it sits above the wave line as spray (depth -1), fading in as the shape grows.
-      const cover = row < full ? 1 : height - full;
-      const depth = full - 1 - row;
-      const base = { col, row, depth, cover };
-      if (centre < form.floorCol) {
-        out.push({ ...base, kind: 'virtual' });
-        continue;
-      }
-      if (centre < form.lentCol) {
-        out.push({ ...base, kind: 'lent' });
-        continue;
-      }
-      const front = form.priceCol + LEAN * ((row + 0.5) / form.rows - 0.5);
-      const quote = Math.max(0, Math.min(1, front - col));
-      // The far right loosens: the position runs on to the top of v4's range, further than any picture can show.
-      const edge = (col - (grid.cols - 9)) / 9;
-      if (quote === 0 && edge > 0 && chance(`${col},${row}`) < edge ** 1.4) continue;
-      const strength = Math.max(0.16, Math.min(1, (form.priceCol / centre) ** 2));
-      out.push({ ...base, kind: quote >= 0.5 ? 'quote' : 'coin', quote, strength });
+export function curveSvg(market, { cols, rows, ceiling, colours, ghost = null, launchSupply = 1e9, id = 'above-floor' }) {
+  const cut = (value) => String(+value.toFixed(3));
+  const now = read(market);
+  const perCol = launchSupply / cols;
+  const px = (coins) => coins / perCol;
+  const py = (value) => rows - (value / ceiling) * rows;
+  const gap = 0.14;
+
+  // The floor, in blocks.
+  const floorTall = (now.floor / ceiling) * rows;
+  const floorRows = Math.max(1, Math.round(floorTall));
+  const rowTall = floorTall / floorRows;
+  const heldCols = Math.round(now.circulating / perCol);
+  const hollowCols = Math.min(heldCols, Math.round(hollowed(market) / perCol));
+  const block = (col, row, rest) =>
+    `<rect x="${cut(col + gap / 2)}" y="${cut(rows - (row + 1) * rowTall + (rowTall * gap) / 2)}" width="${cut(1 - gap)}" height="${cut(rowTall * (1 - gap))}" rx="${cut((1 - gap) * 0.22)}" ${rest}/>`;
+  let out = '';
+  for (let col = 0; col < cols; col += 1) {
+    for (let row = 0; row < floorRows; row += 1) {
+      const below = floorRows - 1 - row;
+      if (col < hollowCols) out += block(col, row, `fill="none" stroke="${colours.surf}" stroke-width="0.06" stroke-dasharray="0.2 0.14"`);
+      else if (col < heldCols) out += block(col, row, `fill="${below === 0 ? colours.surf : below <= 2 ? colours.tide : below <= 6 ? colours.deep : colours.trench}"`);
+      else if (below === 0 && (col + 1) * perCol <= market.maxSupply) out += block(col, row, `fill="none" stroke="${colours.surf}" stroke-opacity="0.45" stroke-width="0.06"`);
     }
   }
+
+  // The market, fluid: from just above the floor up to the curve, over every coin held.
+  const trace = (from, until, drop, state = market) => {
+    const points = [];
+    for (let step = 0; step <= 80; step += 1) {
+      const coins = from + ((until - from) * step) / 80;
+      const y = py(priceAt(state, coins)) + drop;
+      points.push(`${cut(px(coins))} ${cut(y)}`);
+      if (y < -0.3) break; // off the top of the picture
+    }
+    return points.join('L');
+  };
+  const held = now.circulating;
+  if (held > 0) {
+    const top = rows - floorTall - 0.45;
+    out += `<clipPath id="${id}"><rect x="0" y="-2" width="${cols}" height="${cut(top + 2)}"/></clipPath><g clip-path="url(#${id})">`;
+    for (const [drop, name] of [[0, 'surf'], [0.7, 'tide'], [2.4, 'deep'], [5, 'trench']]) {
+      out += `<path d="M0 ${rows}L${trace(0, held, drop)}L${cut(px(held))} ${rows}Z" fill="${colours[name]}"/>`;
+    }
+    out += '</g>';
+  }
+
+  // Where the curve was, where it goes, and where the market sits on it.
+  const line = (state, until, rest) => `<path d="M${trace(0, until, 0, state)}" fill="none" stroke-linejoin="round" stroke-linecap="round" ${rest}/>`;
+  if (ghost) {
+    out += line(ghost, ghost.maxSupply * 0.999, `stroke="${colours.surf}" stroke-opacity="0.7" stroke-width="0.08" stroke-dasharray="0.25 0.35"`);
+    const was = read(ghost);
+    out += `<circle cx="${cut(px(was.circulating))}" cy="${cut(py(was.price))}" r="0.3" fill="${colours.ground}" stroke="${colours.surf}" stroke-width="0.08"/>`;
+  }
+  out += line(market, market.maxSupply * 0.999, `stroke="${colours.foam}" stroke-opacity="0.35" stroke-width="0.1"`);
+  if (held > 0) out += line(market, held, `stroke="${colours.foam}" stroke-width="0.16"`);
+  if (market.maxSupply < launchSupply * 0.998) {
+    out += `<path d="M${cut(px(market.maxSupply))} 0V${rows}" stroke="${colours.muted}" stroke-width="0.05" stroke-dasharray="0.25 0.25"/>`;
+  }
+  out += `<circle cx="${cut(px(held))}" cy="${cut(py(now.price))}" r="0.5" fill="${colours.ground}"/><circle cx="${cut(px(held))}" cy="${cut(py(now.price))}" r="0.32" fill="${colours.foam}"/>`;
   return out;
 }
