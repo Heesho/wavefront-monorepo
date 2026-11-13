@@ -34,6 +34,9 @@ STRINGS = {
     "still-heal": ("funnel-display-latin.woff2", 500, -0.02, "A heal lifts the curve and the floor"),
     "still-burn": ("funnel-display-latin.woff2", 500, -0.02, "A burn shrinks the supply and lifts the floor"),
     "still-borrow": ("funnel-display-latin.woff2", 500, -0.02, "A loan hollows the floor under its coins"),
+    # "by GlazeCorp", under the Wavefront lockup.
+    "endorse-by": ("funnel-display-latin.woff2", 500, -0.02, "by"),
+    "endorse-glazecorp": ("funnel-display-latin.woff2", 500, -0.035, "GlazeCorp"),
     "still-floor": ("funnel-display-latin.woff2", 500, -0.02, "The floor only rises"),
     "label-before": ("geist-mono-latin.woff2", 500, 0.08, "BEFORE"),
     "label-after": ("geist-mono-latin.woff2", 500, 0.08, "AFTER"),

@@ -6,12 +6,16 @@ Wavefront is drawn in the block language it shares with GlazeCorp: rounded block
 
 Every picture follows the same rules. Blocks are the floor: anything at or below the floor price, locked in. Fluid is the market: anything above it. Up is price, so the floor sits at the bottom and the market over it. A filled block holds money and an outline is empty. Fluid sets into blocks and never the reverse, and the two never touch. The logo, glyphs, icons and meters are blocks too. The guidelines page has the full table.
 
+For what to say about Wavefront, what proves it and what not to claim, see [`MESSAGING.md`](MESSAGING.md).
+
 ## What to use
 
 | Need | File |
 |---|---|
 | Logo on a dark page | `logo/wavefront-lockup-on-dark.svg` |
 | Logo on a light page | `logo/wavefront-lockup-on-light.svg` |
+| Logo with "by GlazeCorp" | `logo/wavefront-by-glazecorp-on-dark.svg`, `logo/wavefront-by-glazecorp-on-light.svg` |
+| The GlazeCorp mark on its own | `logo/glazecorp/glazecorp-mark-512.png` (GlazeCorp's artwork, copied from the glazecorp repository) |
 | Mark alone, 48px and up | `logo/wavefront-mark.svg` |
 | Mark alone, 24 to 47px | `logo/wavefront-mark-small.svg` |
 | Mark alone, 16 to 23px | `logo/wavefront-mark-micro.svg` |
