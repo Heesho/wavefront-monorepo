@@ -346,7 +346,7 @@
         for (let col = 0; col < cols; col += 1) {
           for (let row = 0; row < bedRows; row += 1) {
             const top = row === bedRows - 1;
-            ink.fillStyle = top ? (setting > 0.55 ? TONE[0] : setting > 0.2 ? TONE[1] : token('muted')) : '#262626';
+            ink.fillStyle = top ? (setting > 0.55 ? TONE[0] : setting > 0.2 ? TONE[1] : '#2c2c2c') : token('surface-2');
             box(col * cell + inset, tall - (row + 1) * cell + inset, edge);
             ink.fill();
           }

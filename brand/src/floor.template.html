@@ -70,7 +70,7 @@
       const GAP = Number(token('block-gap'));
       const ROUND = Number(token('block-round'));
       const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const COLOUR = { floorTop: token('muted'), floorBody: '#262626', foam: token('foam'), surf: token('surf'), tide: token('tide'), deep: token('deep'), trench: token('trench'), ground: token('ground') };
+      const COLOUR = { foam: token('foam'), surf: token('surf'), tide: token('tide'), deep: token('deep'), trench: token('trench'), ground: token('ground') };
       const money = (value) => (value >= 1 ? `$${value.toFixed(2)}` : `$${value.toFixed(6)}`);
 
       const canvas = document.getElementById('chart');
@@ -159,7 +159,7 @@
         const seen = [];
         for (let index = 0; index <= last; index += 1) if (leftOf(index) > -2 * cell) seen.push(index);
         // The price as a height: never under the floor, never over the top of the picture.
-        const level = (point) => Math.max(floorRows(point), Math.min(usable, rowOf(point.price, scale, usable))) * cell;
+        const level = (point) => Math.max(floorRows(point) + 0.45, Math.min(usable, rowOf(point.price, scale, usable))) * cell;
 
         // The price is fluid: a line with water under it. It shows only above the floor, which has set.
         const line = seen.map((index) => [leftOf(index) + cell / 2, tall - level(points[index])]);
@@ -171,7 +171,8 @@
         };
         pen.save();
         pen.beginPath();
-        for (const index of seen) pen.rect(leftOf(index) - 0.5, 0, cell + 1, tall - floorRows(points[index]) * cell);
+        // The water stops a little short of the floor, so the two never run together: a clear band of ground between.
+        for (const index of seen) pen.rect(leftOf(index) - 0.5, 0, cell + 1, tall - (floorRows(points[index]) + 0.45) * cell);
         pen.clip();
         pen.globalAlpha = 1;
         for (const [drop, colour] of [[0, COLOUR.surf], [0.7, COLOUR.tide], [2.4, COLOUR.deep], [5, COLOUR.trench]]) {
@@ -198,8 +199,7 @@
           const fresh = stepped ? Math.max(0, 1 - (now - point.born) / 1400) : 0;
           for (let row = 0; row < base; row += 1) {
             const depth = base - 1 - row;
-            // The floor is drawn in greys, apart from the price's colours: ground you stand on, not water.
-            pen.fillStyle = depth === 0 ? (fresh > 0.05 ? COLOUR.foam : COLOUR.floorTop) : COLOUR.floorBody;
+            pen.fillStyle = depth === 0 ? (fresh > 0.05 ? COLOUR.foam : COLOUR.surf) : depth <= 2 ? COLOUR.tide : depth <= 6 ? COLOUR.deep : COLOUR.trench;
             box(x, tall - (row + 1) * cell + inset, edge);
             pen.fill();
           }
@@ -220,7 +220,7 @@
         const latest = points[last];
         const held = floorRows(latest) - 1;
         pen.globalAlpha = 0.5;
-        pen.strokeStyle = COLOUR.floorTop;
+        pen.strokeStyle = COLOUR.surf;
         pen.lineWidth = 1;
         for (let col = head + 2 - slide; col * cell < wide; col += 1) {
           box(col * cell + inset + 0.5, tall - (held + 1) * cell + inset + 0.5, edge - 1);
@@ -234,7 +234,7 @@
         pill.floor += (floorY - pill.floor) * (pill.floor ? 0.14 : 1);
         const at = Math.min((head + 2) * cell + 6, wide - 150);
         label(`PRICE ${money(latest.price)}`, at, pill.price, COLOUR.foam);
-        label(`FLOOR ${money(latest.floor)}`, at, pill.floor, COLOUR.floorTop);
+        label(`FLOOR ${money(latest.floor)}`, at, pill.floor, COLOUR.surf);
         pen.globalAlpha = 1;
       }
 

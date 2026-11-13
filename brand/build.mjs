@@ -530,19 +530,19 @@ function floorStill() {
     const base = floorRows(point);
     for (let row = 0; row < base; row += 1) {
       const depth = base - 1 - row;
-      // In greys, apart from the price's colours: ground you stand on, not water.
-      floorBlocks += at(col, row, { fill: depth === 0 ? COLOR.muted : '#262626' });
+      floorBlocks += at(col, row, { fill: depth === 0 ? COLOR.surf : depth <= 2 ? COLOR.tide : depth <= 6 ? COLOR.deep : COLOR.trench });
     }
   });
   // The price is fluid: a line with water under it, shown only above the floor.
-  const level = (point) => Math.max(floorRows(point), Math.min(rows, rising.rowOf(point.price, scale, rows)));
+  // The water stops a little short of the floor, so the two never run together.
+  const level = (point) => Math.max(floorRows(point) + 0.45, Math.min(rows, rising.rowOf(point.price, scale, rows)));
   const line = points.map((point, col) => [col + 0.5, rows - level(point)]);
   const bends = rising.smooth(line);
   const trace = (drop) => `M${n(line[0][0])} ${n(line[0][1] + drop)}${bends.map(([a, b, c, d, x, y]) => `C${n(a)} ${n(b + drop)} ${n(c)} ${n(d + drop)} ${n(x)} ${n(y + drop)}`).join('')}`;
   const water =
     LAYERS.map(([drop, name]) => `<path d="${trace(drop)}L${n(line.at(-1)[0])} ${rows}L${n(line[0][0])} ${rows}Z" fill="${COLOR[name]}"/>`).join('') +
     `<path d="${trace(0)}" fill="none" stroke="${COLOR.foam}" stroke-width="0.16" stroke-linejoin="round" stroke-linecap="round"/>`;
-  const above = points.map((point, col) => `<rect x="${col}" y="-1" width="1.02" height="${rows + 1 - floorRows(point)}"/>`).join('');
+  const above = points.map((point, col) => `<rect x="${col}" y="-1" width="1.02" height="${rows + 1 - floorRows(point) - 0.45}"/>`).join('');
   const body = `<clipPath id="above-floor">${above}</clipPath><g clip-path="url(#above-floor)">${water}</g>${floorBlocks}`;
   const topOf = 150;
   const last = points.at(-1);
@@ -564,7 +564,7 @@ function floorStill() {
       text('still-floor', margin, 108, 42, COLOR.ink) +
       `<g transform="translate(${margin} ${topOf}) scale(${n(cell)})">${body}</g>` +
       tag('label-price', rowY(priceRow(last)) - 22, COLOR.foam) +
-      tag('label-floor', rowY(floorRows(last) - 1) - 22, COLOR.muted),
+      tag('label-floor', rowY(floorRows(last) - 1) - 22, COLOR.surf),
     'The floor only rises: a price over time with its floor rising in steps beneath it',
   );
 }
