@@ -24,6 +24,7 @@
     "sync-abis": "node scripts/sync-abis.js",
     "subgraph:prepare": "yarn workspace @wavefront/subgraph prepare",
     "subgraph:build": "yarn workspace @wavefront/subgraph build",
-    "test:v4": "yarn workspace @wavefront/v4 test"
+    "test:v4": "yarn workspace @wavefront/v4 test",
+    "brand": "node brand/build.mjs --png"
   }
 }

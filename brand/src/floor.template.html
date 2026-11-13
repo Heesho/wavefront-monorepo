@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wavefront rising floor</title>
+    <link rel="icon" href="icons/favicon.svg" />
+    <link rel="stylesheet" href="tokens/tokens.css" />
+    <link rel="stylesheet" href="elements/wavefront.css" />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--wf-ground);
+        color: var(--wf-ink);
+        font: 400 15px/1.5 var(--wf-font-body);
+        -webkit-font-smoothing: antialiased;
+      }
+      .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--wf-hairline); }
+      .hero canvas { display: block; width: 100%; }
+      .copy { position: absolute; inset: 0 0 auto 0; max-width: 1120px; margin: 0 auto; padding: 36px 24px 0; pointer-events: none; }
+      .copy img { height: 30px; display: block; }
+      .copy h1 {
+        margin: 28px 0 10px;
+        max-width: 12ch;
+        font: 500 clamp(34px, 6vw, 64px) / 1 var(--wf-font-display);
+        letter-spacing: var(--wf-tracking-display);
+      }
+      .copy p { margin: 0; max-width: 40ch; color: var(--wf-ink-2); font-size: 17px; }
+      .bar { max-width: 1120px; margin: 0 auto; padding: 16px 24px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .bar .spacer { flex: 1; }
+      .foot { max-width: 1120px; margin: 0 auto; padding: 20px 24px 72px; color: var(--wf-muted); font-size: 14px; }
+      .foot p { margin: 0 0 10px; max-width: 78ch; }
+    </style>
+  </head>
+  <body>
+    <div class="hero">
+      <canvas id="chart" role="img" aria-label="A coin's price over time, with its floor rising in steps beneath it"></canvas>
+      <div class="copy">
+        <img src="logo/wavefront-lockup-on-dark.svg" alt="Wavefront" />
+        <h1>The floor only rises</h1>
+        <p>Every trade pays a little into the floor. The price can fall back to it, and never through it.</p>
+      </div>
+    </div>
+    <div class="bar">
+      <span class="wf-chip wf-chip--floor" id="mood">Drifting</span>
+      <button class="wf-button" type="button" data-mood="pump">Pump</button>
+      <button class="wf-button" type="button" data-mood="dump">Dump</button>
+      <span class="spacer"></span>
+      <span class="wf-chip" id="gain"></span>
+      <button class="wf-button" type="button" id="floor-play">Pause</button>
+    </div>
+    <div class="foot">
+      <p>
+        This runs live on the protocol's own formulas: a 2% fee on every trade, with 60% of it healed into the curve on a
+        buy and burned on a sell. Nothing in the picture tells the floor to go up. Press Dump to watch the price fall
+        onto the floor and stop.
+      </p>
+      <p>
+        Each column is fourteen trades on a very busy coin, about <span id="volume"></span> changing hands, so years of
+        ordinary trading pass in a minute. The scale is logarithmic: a doubling is the same height anywhere.
+      </p>
+    </div>
+
+    <script type="module">
+      /*__FLOOR_MODULES__*/
+
+      const css = getComputedStyle(document.documentElement);
+      const token = (name) => css.getPropertyValue(`--wf-${name}`).trim();
+      const GAP = Number(token('block-gap'));
+      const ROUND = Number(token('block-round'));
+      const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const COLOUR = { floorTop: token('muted'), floorBody: '#262626', foam: token('foam'), surf: token('surf'), tide: token('tide'), deep: token('deep'), trench: token('trench'), ground: token('ground') };
+      const money = (value) => (value >= 1 ? `$${value.toFixed(2)}` : `$${value.toFixed(6)}`);
+
+      const canvas = document.getElementById('chart');
+      const pen = canvas.getContext('2d');
+      const PERIOD = 460; // milliseconds a column
+      let cols = 64;
+      let rows = 24;
+      let head = 0; // the column where "now" sits; the floor is projected to the right of it
+      let cell = 0;
+      let wide = 0;
+
+      const random = seeded(11);
+      let market = opened(random);
+      let count = 0;
+      let points = [];
+      const next = (pressure) => {
+        points.push({ ...column(market, random, pressure ?? drift(count)), born: performance.now() });
+        count += 1;
+        if (points.length > cols + 4) points.shift();
+      };
+      let steer = null; // { pressure, left } while Pump or Dump is in force
+      let scale = null;
+      let since = performance.now();
+      let playing = !still;
+      let first = null;
+      const pill = { price: 0, floor: 0 };
+
+      function size() {
+        if (!canvas.clientWidth) return;
+        const ratio = window.devicePixelRatio || 1;
+        wide = canvas.clientWidth;
+        cols = wide < 640 ? 38 : 64;
+        cell = wide / cols;
+        rows = Math.max(24, Math.ceil(600 / cell));
+        head = Math.floor(cols * 0.76);
+        const tall = Math.round(rows * cell);
+        canvas.style.height = `${tall}px`;
+        canvas.width = Math.round(wide * ratio);
+        canvas.height = Math.round(tall * ratio);
+        pen.setTransform(ratio, 0, 0, ratio, 0, 0);
+        while (points.length < head + 2) next();
+        first ??= points[0].floor;
+      }
+
+      function box(x, y, edge) {
+        pen.beginPath();
+        if (pen.roundRect) pen.roundRect(x, y, edge, edge, Math.max(0, edge * ROUND));
+        else pen.rect(x, y, edge, edge);
+      }
+
+      function label(text, x, y, colour) {
+        pen.font = `500 12px ${token('font-mono')}`;
+        const width = pen.measureText(text).width + 20;
+        pen.globalAlpha = 1;
+        pen.fillStyle = COLOUR.ground;
+        pen.strokeStyle = colour;
+        pen.lineWidth = 1;
+        pen.beginPath();
+        if (pen.roundRect) pen.roundRect(x + 0.5, y - 13 + 0.5, width, 26, 13);
+        else pen.rect(x, y - 13, width, 26);
+        pen.fill();
+        pen.stroke();
+        pen.fillStyle = colour;
+        pen.textBaseline = 'middle';
+        pen.fillText(text, x + 10, y + 1);
+      }
+
+      function paint(now) {
+        if (cell < 2 || points.length < 2) return;
+        const tall = rows * cell;
+        const edge = cell * (1 - GAP);
+        const inset = (cell - edge) / 2;
+        const slide = playing ? Math.min(1, (now - since) / PERIOD) : 1;
+        pen.clearRect(0, 0, wide, tall);
+
+        // The scale follows what is on screen, easing so the picture never jumps.
+        const want = range(points.slice(-(head + 2)));
+        scale ??= want;
+        scale = { low: scale.low + (want.low - scale.low) * 0.06, high: scale.high + (want.high - scale.high) * 0.06 };
+        // The top third is kept clear for the headline: the picture uses the rows below it.
+        const usable = rows * 0.56;
+        const floorRows = (point) => Math.max(1, Math.floor(rowOf(point.floor, scale, usable)));
+
+        const last = points.length - 1;
+        const leftOf = (index) => (head + 1 - slide - (last - index)) * cell;
+        const seen = [];
+        for (let index = 0; index <= last; index += 1) if (leftOf(index) > -2 * cell) seen.push(index);
+        // The price as a height: never under the floor, never over the top of the picture.
+        const level = (point) => Math.max(floorRows(point), Math.min(usable, rowOf(point.price, scale, usable))) * cell;
+
+        // The price is fluid: a line with water under it. It shows only above the floor, which has set.
+        const line = seen.map((index) => [leftOf(index) + cell / 2, tall - level(points[index])]);
+        const bends = smooth(line);
+        const trace = (drop) => {
+          pen.beginPath();
+          pen.moveTo(line[0][0], line[0][1] + drop);
+          for (const [a, b, c, d, x, y] of bends) pen.bezierCurveTo(a, b + drop, c, d + drop, x, y + drop);
+        };
+        pen.save();
+        pen.beginPath();
+        for (const index of seen) pen.rect(leftOf(index) - 0.5, 0, cell + 1, tall - floorRows(points[index]) * cell);
+        pen.clip();
+        pen.globalAlpha = 1;
+        for (const [drop, colour] of [[0, COLOUR.surf], [0.7, COLOUR.tide], [2.4, COLOUR.deep], [5, COLOUR.trench]]) {
+          trace(drop * cell);
+          pen.lineTo(line.at(-1)[0], tall);
+          pen.lineTo(line[0][0], tall);
+          pen.closePath();
+          pen.fillStyle = colour;
+          pen.fill();
+        }
+        trace(0);
+        pen.strokeStyle = COLOUR.foam;
+        pen.lineWidth = 3;
+        pen.lineJoin = 'round';
+        pen.stroke();
+        pen.restore();
+
+        // The floor: blocks, and one row taller wherever it has ratcheted. A new step glows as it sets.
+        for (const index of seen) {
+          const point = points[index];
+          const x = leftOf(index) + inset;
+          const base = floorRows(point);
+          const stepped = index > 0 && base > floorRows(points[index - 1]);
+          const fresh = stepped ? Math.max(0, 1 - (now - point.born) / 1400) : 0;
+          for (let row = 0; row < base; row += 1) {
+            const depth = base - 1 - row;
+            // The floor is drawn in greys, apart from the price's colours: ground you stand on, not water.
+            pen.fillStyle = depth === 0 ? (fresh > 0.05 ? COLOUR.foam : COLOUR.floorTop) : COLOUR.floorBody;
+            box(x, tall - (row + 1) * cell + inset, edge);
+            pen.fill();
+          }
+        }
+
+        // Where the price is now.
+        const [dotX, dotY] = line.at(-1);
+        pen.fillStyle = COLOUR.ground;
+        pen.beginPath();
+        pen.arc(dotX, dotY, 9, 0, Math.PI * 2);
+        pen.fill();
+        pen.fillStyle = COLOUR.foam;
+        pen.beginPath();
+        pen.arc(dotX, dotY, 5.5, 0, Math.PI * 2);
+        pen.fill();
+
+        // Ahead of now: the floor, held. Whatever the price does next, it starts from here.
+        const latest = points[last];
+        const held = floorRows(latest) - 1;
+        pen.globalAlpha = 0.5;
+        pen.strokeStyle = COLOUR.floorTop;
+        pen.lineWidth = 1;
+        for (let col = head + 2 - slide; col * cell < wide; col += 1) {
+          box(col * cell + inset + 0.5, tall - (held + 1) * cell + inset + 0.5, edge - 1);
+          pen.stroke();
+        }
+
+        // The two labels ride at "now", easing to their rows and never overlapping.
+        const priceY = dotY;
+        const floorY = Math.max(priceY + 30, tall - (held + 0.5) * cell);
+        pill.price += (priceY - pill.price) * (pill.price ? 0.14 : 1);
+        pill.floor += (floorY - pill.floor) * (pill.floor ? 0.14 : 1);
+        const at = Math.min((head + 2) * cell + 6, wide - 150);
+        label(`PRICE ${money(latest.price)}`, at, pill.price, COLOUR.foam);
+        label(`FLOOR ${money(latest.floor)}`, at, pill.floor, COLOUR.floorTop);
+        pen.globalAlpha = 1;
+      }
+
+      const MOODS = {
+        pump: { pressure: 0.95, left: 9, say: 'Buyers pile in' },
+        dump: { pressure: -1, left: 12, say: 'Everyone sells · it falls to the floor and stops' },
+      };
+      const mood = document.getElementById('mood');
+
+      function advance(now) {
+        next(steer ? steer.pressure : undefined);
+        if (steer && (steer.left -= 1) <= 0) {
+          steer = null;
+          mood.textContent = 'Drifting';
+        }
+        since = now;
+        // Once a coin's floor has risen thirtyfold, start a new one. Left running, the numbers would grow without
+        // end, and the picture is about the shape, not the size.
+        if (points.at(-1).floor / first > 30) {
+          market = opened(random);
+          points = [];
+          count = 0;
+          scale = null;
+          pill.price = 0;
+          pill.floor = 0;
+          while (points.length < head + 2) next();
+          first = points[0].floor;
+          steer = null;
+          mood.textContent = 'A new coin launches';
+        }
+        const latest = points.at(-1);
+        document.getElementById('gain').textContent = `Floor up ${((latest.floor / first - 1) * 100).toFixed(0)}% since the start`;
+        const recent = points.slice(-12);
+        document.getElementById('volume').textContent = `$${Math.round(recent.reduce((sum, point) => sum + point.volume, 0) / recent.length / 1000)}k`;
+      }
+
+      function loop(now) {
+        requestAnimationFrame(loop);
+        if (playing && now - since >= PERIOD) advance(now);
+        paint(now);
+      }
+
+      for (const button of document.querySelectorAll('[data-mood]')) {
+        button.addEventListener('click', () => {
+          steer = { ...MOODS[button.dataset.mood] };
+          mood.textContent = steer.say;
+        });
+      }
+      const playButton = document.getElementById('floor-play');
+      playButton.addEventListener('click', () => {
+        playing = !playing;
+        since = performance.now();
+        playButton.textContent = playing ? 'Pause' : 'Play';
+      });
+      if (still) playButton.textContent = 'Play';
+
+      new ResizeObserver(() => {
+        size();
+        paint(performance.now());
+      }).observe(canvas);
+      size();
+      advance(performance.now());
+      document.fonts.ready.then(() => requestAnimationFrame(loop));
+    </script>
+  </body>
+</html>

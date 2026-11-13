@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wavefront liquidity, to scale</title>
+    <link rel="icon" href="icons/favicon.svg" />
+    <link rel="stylesheet" href="tokens/tokens.css" />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--wf-ground);
+        color: var(--wf-ink);
+        font: 400 15px/1.5 var(--wf-font-body);
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 1120px; margin: 0 auto; padding: 40px 24px 72px; }
+      header img { height: 30px; display: block; }
+      h1 {
+        margin: 36px 0 8px;
+        font: 500 clamp(30px, 5vw, 46px) / 1.05 var(--wf-font-display);
+        letter-spacing: var(--wf-tracking-display);
+      }
+      .lead { margin: 0 0 28px; max-width: 62ch; color: var(--wf-muted); font-size: 17px; }
+      .stage {
+        border: 1px solid var(--wf-hairline);
+        border-radius: var(--wf-radius);
+        background: var(--wf-ground);
+        overflow: hidden;
+      }
+      canvas { display: block; width: 100%; }
+      .view { margin: 0; padding: 14px 18px 6px; font: 500 15px/1.3 var(--wf-font-body); }
+      .view span {
+        margin-left: 10px;
+        font: 500 11px/1.4 var(--wf-font-mono);
+        letter-spacing: var(--wf-tracking-label);
+        text-transform: uppercase;
+        color: var(--wf-muted);
+      }
+      .caption {
+        min-height: 3em;
+        margin: 0;
+        padding: 14px 18px 16px;
+        border-top: 1px solid var(--wf-hairline);
+        font-size: 16px;
+      }
+      .caption b { font-weight: 500; color: var(--wf-foam); }
+      .controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+      button {
+        font: 500 14px/1 var(--wf-font-body);
+        color: var(--wf-ink);
+        background: var(--wf-surface);
+        border: 1px solid var(--wf-hairline);
+        border-radius: 10px;
+        padding: 11px 14px;
+        cursor: pointer;
+      }
+      button:hover { background: var(--wf-surface-2); }
+      button:focus-visible { outline: 2px solid var(--wf-foam); outline-offset: 2px; }
+      button small { font: 500 12px/1 var(--wf-font-mono); color: var(--wf-muted); margin-left: 6px; }
+      .spacer { flex: 1; }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1px;
+        margin: 24px 0 0;
+        border: 1px solid var(--wf-hairline);
+        border-radius: var(--wf-radius);
+        overflow: hidden;
+        background: var(--wf-hairline);
+      }
+      .stats div { background: var(--wf-surface); padding: 14px 16px; }
+      .stats dt {
+        font: 500 11px/1.4 var(--wf-font-mono);
+        letter-spacing: var(--wf-tracking-label);
+        text-transform: uppercase;
+        color: var(--wf-muted);
+      }
+      .stats dd { margin: 6px 0 0; font: 500 19px/1.2 var(--wf-font-mono); }
+      .read { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 20px 32px; margin: 36px 0 0; }
+      .read h2 { margin: 0 0 6px; font: 500 15px/1.3 var(--wf-font-body); display: flex; align-items: center; gap: 10px; }
+      .read p { margin: 0; color: var(--wf-muted); font-size: 14px; }
+      .key { width: 14px; height: 14px; border-radius: 3px; flex: none; }
+      .foot { margin: 36px 0 0; color: var(--wf-muted); font-size: 13px; max-width: 80ch; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header><img src="logo/wavefront-lockup-on-dark.svg" alt="Wavefront" /></header>
+      <h1>Liquidity, to scale</h1>
+      <p class="lead">
+        Two views of one coin's market, drawn from the protocol's formulas and moved by the same buttons. First the
+        price curve. Then the pool behind it, where quote is fluid, coins are blocks, and one block's area is <span id="block-value"></span> of quote.
+      </p>
+
+      <div class="stage">
+        <h2 class="view">The curve <span>price against coins held · the filled area is the quote in the pool</span></h2>
+        <canvas id="curve" role="img" aria-label="The coin's price curve"></canvas>
+        <p class="caption" id="caption" aria-live="polite"></p>
+      </div>
+
+      <div class="controls">
+        <button type="button" data-do="buy">Buy <small>$30,000</small></button>
+        <button type="button" data-do="sell">Sell <small>a quarter</small></button>
+        <button type="button" data-do="heal">Heal <small>$40,000</small></button>
+        <button type="button" data-do="burn">Burn <small>8% of coins</small></button>
+        <button type="button" data-do="borrow">Borrow</button>
+        <button type="button" data-do="repay">Repay</button>
+        <span class="spacer"></span>
+        <button type="button" id="play">Pause</button>
+        <button type="button" data-do="reset">Reset</button>
+      </div>
+
+      <div class="stage" style="margin-top: 24px">
+        <h2 class="view">The pool <span>depth against price · quote is fluid, coins are blocks, the price is the front</span></h2>
+        <canvas id="scene" role="img" aria-label="The coin's liquidity drawn as blocks"></canvas>
+      </div>
+
+      <dl class="stats">
+        <div><dt>Price</dt><dd id="s-price"></dd></div>
+        <div><dt>Floor</dt><dd id="s-floor"></dd></div>
+        <div><dt>Quote in pool</dt><dd id="s-quote"></dd></div>
+        <div><dt>Lent out</dt><dd id="s-debt"></dd></div>
+        <div><dt>Coins held</dt><dd id="s-held"></dd></div>
+        <div><dt>Supply</dt><dd id="s-supply"></dd></div>
+      </dl>
+
+      <div class="read">
+        <div>
+          <h2><span class="key" style="border: 1px solid rgb(235 235 235 / 0.35)"></span>Virtual quote</h2>
+          <p>The outlined blocks left of the floor. They count in the price but nobody deposited them. They are why a coin can trade from its first second.</p>
+        </div>
+        <div>
+          <h2><span class="key" style="background: var(--wf-tide); box-shadow: 0 -4px 0 var(--wf-foam)"></span>Quote in the pool</h2>
+          <p>The money buyers have paid in. On the curve it is the filled area under the line; in the pool it is the solid blocks between the floor and the price.</p>
+        </div>
+        <div>
+          <h2><span class="key" style="background: var(--wf-tide); border-radius: 22%"></span>Coins in the pool</h2>
+          <p>The blocks right of the price. They thin out as the price climbs, and run on further than the picture shows. At the price, quote sets into coins and coins melt into quote: that front is the trade.</p>
+        </div>
+        <div>
+          <h2><span class="key" style="border: 1px dashed var(--wf-surf)"></span>Lent out</h2>
+          <p>Loans come out of the floor: the quote sitting right at the floor price, which is what the borrower's coins would fetch if sold last. Those coins are locked, and only selling them could reach that quote, so there is nothing to liquidate.</p>
+        </div>
+      </div>
+
+      <p class="foot">
+        Drawn from the protocol's own formulas (see <code>docs/bonding-curve.md</code>): with liquidity L, virtual quote is
+        L × √floor, quote in the pool is L × (√price − √floor), and pool coins are L ÷ √price. The bottom axis is the
+        square root of the price, which is what makes every block worth the same. Fees are 2% a trade, with 60% healed
+        on a buy or burned on a sell. On Uniswap v4 a heal or burn waits until it is worth one tick step; here it lands
+        at once, as it does in v1.
+      </p>
+    </main>
+
+    <script type="module">
+      /*__LIQUIDITY_MODULE__*/
+
+      /*__ELEMENTS_NAMESPACE__*/
+
+      const css = getComputedStyle(document.documentElement);
+      const token = (name) => css.getPropertyValue(`--wf-${name}`).trim();
+      const rgb = (hex) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+      const INK = { foam: rgb(token('foam')), surf: rgb(token('surf')), tide: rgb(token('tide')), deep: rgb(token('deep')), trench: rgb(token('trench')) };
+      const GAP = Number(token('block-gap'));
+      const ROUND = Number(token('block-round'));
+      const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      const usd = (value) => `$${Math.round(value).toLocaleString('en-US')}`;
+      const price = (value) => `$${value.toFixed(6)}`;
+      const coins = (value) =>
+        value >= 1e9 ? `${(value / 1e9).toFixed(3)}B` : value >= 1e6 ? `${(value / 1e6).toFixed(1)}M` : Math.round(value).toLocaleString('en-US');
+      const percent = (ratio) => `${((ratio - 1) * 100).toFixed(1)}%`;
+
+      const ROWS_MAX = 11;
+      let market = launch();
+      let grid = view();
+      let target = shape(market, grid);
+      const shown = { ...target };
+      const speed = { rows: 0, floorCol: 0, lentCol: 0, priceCol: 0 };
+      let stir = 0; // how hard the surface is sloshing, 1 right after a trade
+      let lift = 1; // 0 to 1 through a rebalance, when the whole position is taken out and put back
+      let clock = 0;
+
+      const caption = document.getElementById('caption');
+      const say = (html) => {
+        caption.innerHTML = html;
+      };
+
+      /** Zoom out when the shape nears the edge of the picture, so it never runs off. */
+      function fit() {
+        let form = shape(market, grid);
+        while (form.priceCol > grid.cols - 13) {
+          grid = { ...grid, rootPerCol: grid.rootPerCol * 1.25 };
+          form = shape(market, grid);
+        }
+        while (form.rows > ROWS_MAX - 2) {
+          grid = { ...grid, liquidityPerRow: grid.liquidityPerRow * 1.25 };
+          form = shape(market, grid);
+        }
+        target = form;
+        document.getElementById('block-value').textContent = usd(blockValue(grid));
+      }
+
+      function stats() {
+        const now = read(market);
+        document.getElementById('s-price').textContent = price(now.price);
+        document.getElementById('s-floor').textContent = price(now.floor);
+        document.getElementById('s-quote').textContent = usd(market.realQuote - market.debt);
+        document.getElementById('s-debt').textContent = usd(market.debt);
+        document.getElementById('s-held').textContent = coins(now.circulating);
+        document.getElementById('s-supply').textContent = coins(market.maxSupply);
+      }
+
+      const ACTIONS = {
+        buy() {
+          const result = buy(market, 30_000);
+          stir = 1;
+          say(`<b>Buy.</b> ${usd(result.quote)} in, ${coins(result.coinsOut)} coins out. The front moves right, and ${usd(result.healed)} of the fee is healed into the pool.`);
+        },
+        sell() {
+          const before = read(market);
+          const result = sell(market, before.free * 0.25);
+          if (result.coins <= 0) {
+            say(before.circulating <= 0 ? 'Nothing to sell yet: no coins have been bought.' : 'Nothing to sell: every coin left is locked behind a loan.');
+            return;
+          }
+          stir = 1;
+          say(`<b>Sell.</b> ${coins(result.coins)} coins in, ${usd(result.quoteOut)} out. The front falls back, and ${coins(result.burned)} coins of the fee are burned. It can never fall past the floor.`);
+        },
+        heal() {
+          const before = read(market);
+          if (before.circulating <= 0) return say('A heal needs coins in circulation. Buy first.');
+          heal(market, 40_000);
+          lift = 0;
+          const after = read(market);
+          say(`<b>Heal.</b> $40,000 added with nothing taken out. The pool gets deeper and its left wall moves in: the floor rises ${percent(after.floor / before.floor)}. Anyone can do this; every buy does a little of it.`);
+        },
+        burn() {
+          const before = read(market);
+          const amount = burn(market, Math.min(before.circulating * 0.08, before.free * 0.5));
+          if (amount <= 0) return say('Nothing to burn yet: no coins have been bought.');
+          lift = 0;
+          const after = read(market);
+          say(`<b>Burn.</b> ${coins(amount)} coins destroyed, and the pool gives up coins in proportion. The shape gets thinner but both walls move right: floor and price rise ${percent(after.floor / before.floor)}.`);
+        },
+        borrow() {
+          const before = read(market);
+          const backing = before.free * 0.5;
+          const amount = borrow(market, credit(market, backing));
+          if (amount <= 0) return say(before.circulating <= 0 ? 'Borrowing needs coins to borrow against. Buy first.' : 'No credit left: the free coins are already borrowed against.');
+          lift = 0;
+          const after = read(market);
+          say(`<b>Borrow.</b> A holder borrows ${usd(amount)}: what their ${coins(after.locked - before.locked)} coins would fetch if sold last, down at the floor. That quote, the slice of the pool sitting on the floor, is lifted out and the coins are locked. No interest, no liquidation; the floor price does not move.`);
+        },
+        repay() {
+          const amount = repay(market);
+          if (amount <= 0) return say('Nothing is owed.');
+          lift = 0;
+          say(`<b>Repay.</b> ${usd(amount)} goes back in at the floor, and the locked coins are free again.`);
+        },
+        reset() {
+          market = launch();
+          grid = view();
+          lift = 0;
+          say('<b>Launch.</b> One billion coins against $100,000 of virtual quote. Nothing has been deposited, and the price starts at the floor.');
+        },
+      };
+
+      function act(name) {
+        // A heal or burn redraws the curve; keep the old one on screen for a moment as a ghost.
+        ghost = name === 'heal' || name === 'burn' ? { scale: lineShown.scale, supply: lineShown.supply, fade: 1 } : name === 'reset' ? null : ghost;
+        ACTIONS[name]();
+        fit();
+        stats();
+        line = lineFor(market);
+        if (name === 'reset') Object.assign(lineShown, line);
+        if (still) {
+          Object.assign(shown, target);
+          Object.assign(lineShown, line);
+        }
+      }
+
+      /* ------------------------------------------------------------- draw */
+
+      const canvas = document.getElementById('scene');
+      const pen = canvas.getContext('2d');
+      let width = 0;
+      let cell = 0;
+
+      function resize() {
+        const ratio = window.devicePixelRatio || 1;
+        if (!canvas.clientWidth) return;
+        width = canvas.clientWidth;
+        cell = width / grid.cols;
+        const height = Math.round(cell * (ROWS_MAX + 2.5) + 58);
+        canvas.style.height = `${height}px`;
+        canvas.width = Math.round(width * ratio);
+        canvas.height = Math.round(height * ratio);
+        pen.setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
+
+      function box(x, y, size) {
+        const radius = Math.max(0, size * ROUND);
+        pen.beginPath();
+        if (pen.roundRect) pen.roundRect(x, y, size, size, radius);
+        else pen.rect(x, y, size, size);
+      }
+
+      const blend = (from, to, share) => from.map((value, index) => Math.round(value + (to[index] - value) * share));
+
+      function draw() {
+        if (cell < 2) return;
+        const base = cell * (ROWS_MAX + 2.5);
+        const size = cell * (1 - GAP);
+        const inset = (cell - size) / 2;
+        const rebuilding = Math.sin(Math.PI * Math.min(1, lift)); // 0, up to 1 mid-rebalance, back to 0
+        pen.clearRect(0, 0, width, base + 58);
+
+        // Left of the pool: the virtual quote, and any slice that is lent out. Outlines only, since neither holds money.
+        for (const block of blocks(shown, grid)) {
+          if (block.kind !== 'virtual' && block.kind !== 'lent') continue;
+          const x = block.col * cell + inset;
+          const y = base - (block.row + 1) * cell + inset;
+          const lent = block.kind === 'lent';
+          pen.globalAlpha = block.cover * (lent ? 0.9 : 1);
+          pen.strokeStyle = lent ? `rgb(${INK.surf.join(' ')})` : 'rgb(235 235 235 / 0.2)';
+          pen.lineWidth = 1;
+          pen.setLineDash(lent ? [Math.max(2, size / 4), Math.max(2, size / 5)] : []);
+          box(x + 0.5, y + 0.5, size - 1);
+          pen.stroke();
+        }
+        pen.setLineDash([]);
+
+        // The pool itself. Quote is fluid, coins are blocks, and the price is the front where one sets into the other:
+        // a buy melts blocks into fluid as the front advances, a sell sets fluid back into blocks as it retreats.
+        const ripple = (col) => stir * 0.95 * Math.sin(col * 0.62 - clock * 7);
+        const start = Math.round(shown.lentCol) * cell;
+        const shapes = WF.front({
+          width,
+          height: base,
+          unit: cell,
+          at: shown.priceCol,
+          spread: 7,
+          surface: (x) => Math.max(1, shown.rows + (x / cell < shown.priceCol ? ripple(x / cell) : 0)) * cell,
+        });
+        pen.save();
+        pen.beginPath();
+        pen.rect(start, 0, width - start, base);
+        pen.clip();
+        pen.globalAlpha = 1 - 0.25 * rebuilding;
+        WF.drawFront(pen, shapes, (shape) => {
+          const { col, row } = shape;
+          // The far right loosens: the position runs on to the top of v4's range, further than any picture can show.
+          const edge = (col - (grid.cols - 9)) / 9;
+          if (edge > 0 && chance(`${col},${row}`) < edge ** 1.4) return null;
+          // Coins thin out as the price climbs, as L / sqrt(price) does.
+          const strength = col + 0.5 > shown.priceCol ? Math.max(0.16, Math.min(1, (shown.priceCol / (col + 0.5)) ** 2)) : 1;
+          // A rebalance takes the whole position out and puts it back: the blocks lift, drift and settle.
+          return {
+            ...shape,
+            x: shape.x + rebuilding * cell * 1.6 * (chance(`x${col},${row}`) - 0.5),
+            y: shape.y - rebuilding * cell * (0.5 + 2.6 * chance(`y${col},${row}`)),
+            alpha: shape.alpha * strength * (1 - 0.35 * rebuilding),
+          };
+        });
+        pen.restore();
+
+        // The two prices, marked under the picture.
+        pen.globalAlpha = 1;
+        pen.setLineDash([]);
+        const now = read(market);
+        pen.font = `500 11px ${token('font-mono')}`;
+        pen.textBaseline = 'top';
+        const mark = (col, line, label, colour) => {
+          const x = Math.round(col * cell) + 0.5;
+          pen.strokeStyle = colour;
+          pen.fillStyle = colour;
+          pen.beginPath();
+          pen.moveTo(x, base + 4);
+          pen.lineTo(x, base + 12 + line * 20);
+          pen.stroke();
+          const room = pen.measureText(label).width;
+          pen.fillText(label, Math.min(x + 6, width - room - 4), base + 8 + line * 20);
+        };
+        mark(shown.floorCol, 1, `FLOOR ${price(now.floor)}`, token('muted'));
+        mark(shown.priceCol, 0, `PRICE ${price(now.price)}`, token('foam'));
+      }
+
+      /* ------------------------------------------------------------ curve */
+
+      /*
+       * The price curve itself. With k = virtual quote × supply, the price when `held` coins are out is
+       * k ÷ (supply − held)². It starts at the floor, and the area under it up to the coins held is exactly the
+       * quote in the pool. A buy or sell slides along it; a heal or burn replaces it with a higher one.
+       */
+      const lineFor = (from) => {
+        const now = read(from);
+        return { scale: from.virtualQuote * from.maxSupply, supply: from.maxSupply, held: now.circulating, locked: now.locked };
+      };
+      let line = lineFor(market);
+      const lineShown = { ...line };
+      const lineSpeed = { scale: 0, supply: 0, held: 0, locked: 0 };
+      let ghost = null;
+      let ceiling = 0.0014; // the price at the top of the chart; it follows the market
+      const COINS = 1e9; // the chart's width: the launch supply
+      const PLOT = { cols: 64, rows: 18, left: 66, right: 16, top: 12, bottom: 34 };
+      const chart = document.getElementById('curve');
+      const brush = chart.getContext('2d');
+      let chartWidth = 0;
+      let unit = 0;
+
+      function resizeChart() {
+        const ratio = window.devicePixelRatio || 1;
+        if (!chart.clientWidth) return;
+        chartWidth = chart.clientWidth;
+        unit = (chartWidth - PLOT.left - PLOT.right) / PLOT.cols;
+        const height = Math.round(PLOT.top + PLOT.rows * unit + PLOT.bottom);
+        chart.style.height = `${height}px`;
+        chart.width = Math.round(chartWidth * ratio);
+        chart.height = Math.round(height * ratio);
+        brush.setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
+
+      function drawChart() {
+        if (unit < 2) return;
+        const { scale, supply, held, locked } = lineShown;
+        const priceAt = (coinsOut) => scale / Math.max(1, supply - coinsOut) ** 2;
+        const base = PLOT.top + PLOT.rows * unit;
+        const plotWidth = PLOT.cols * unit;
+        const px = (coinsOut) => PLOT.left + (coinsOut / COINS) * plotWidth;
+        const py = (value) => base - (value / ceiling) * PLOT.rows * unit;
+        const muted = token('muted');
+        const foam = `rgb(${INK.foam.join(' ')})`;
+        brush.clearRect(0, 0, chartWidth, base + PLOT.bottom);
+        brush.setLineDash([]);
+        brush.globalAlpha = 1;
+        brush.font = `500 11px ${token('font-mono')}`;
+        brush.textBaseline = 'middle';
+
+        // Price lines and labels up the side, coins along the bottom.
+        const rough = ceiling / 4;
+        const power = 10 ** Math.floor(Math.log10(rough));
+        const stride = [1, 2, 5, 10].find((multiple) => multiple * power >= rough) * power;
+        brush.fillStyle = muted;
+        brush.textAlign = 'right';
+        for (let value = stride; value < ceiling * 0.98; value += stride) {
+          brush.strokeStyle = 'rgb(235 235 235 / 0.07)';
+          brush.beginPath();
+          brush.moveTo(PLOT.left, Math.round(py(value)) + 0.5);
+          brush.lineTo(PLOT.left + plotWidth, Math.round(py(value)) + 0.5);
+          brush.stroke();
+          brush.fillText(`$${value.toFixed(4)}`, PLOT.left - 10, py(value));
+        }
+        for (const mark of [0, 0.25, 0.5, 0.75, 1]) {
+          brush.textAlign = mark === 0 ? 'left' : mark === 1 ? 'right' : 'center';
+          brush.fillText(mark === 0 ? '0' : coins(mark * COINS), px(mark * COINS), base + 18);
+        }
+        brush.textAlign = 'left';
+
+        // The area under the curve is the quote in the pool. It is drawn as water in section: the same layers as the
+        // logo, each a band that follows the curve. No blocks here: this picture is all line.
+        const under = (from, until, drop) => {
+          brush.beginPath();
+          brush.moveTo(px(from), base);
+          for (let step = 0; step <= 160; step += 1) {
+            const coinsOut = from + ((until - from) * step) / 160;
+            brush.lineTo(px(coinsOut), Math.min(base, py(priceAt(coinsOut)) + drop));
+          }
+          brush.lineTo(px(until), base);
+          brush.closePath();
+        };
+        brush.save();
+        brush.beginPath();
+        brush.rect(PLOT.left, PLOT.top - 6, plotWidth, base - PLOT.top + 6);
+        brush.clip();
+        if (held > 0) {
+          const bands = [[0, INK.surf], [unit * 0.7, INK.tide], [unit * 2.4, INK.deep], [unit * 5, INK.trench]];
+          for (const [drop, colour] of bands) {
+            brush.fillStyle = `rgb(${colour.join(' ')})`;
+            under(0, held, drop);
+            brush.fill();
+          }
+          // What loans draw on: the quote at the floor, which is the slice nearest zero. Emptied and outlined.
+          if (locked > 0) {
+            brush.fillStyle = token('ground');
+            under(0, Math.min(locked, held), 0);
+            brush.fill();
+            brush.strokeStyle = `rgb(${INK.surf.join(' ')})`;
+            brush.lineWidth = 1.5;
+            brush.setLineDash([5, 4]);
+            brush.stroke();
+            brush.setLineDash([]);
+          }
+        }
+        brush.restore();
+
+        // The floor: the price the curve starts from, and can never fall below.
+        const floorY = Math.round(py(scale / supply ** 2)) + 0.5;
+        brush.strokeStyle = muted;
+        brush.lineWidth = 1;
+        brush.setLineDash([5, 5]);
+        brush.beginPath();
+        brush.moveTo(PLOT.left, floorY);
+        brush.lineTo(PLOT.left + plotWidth, floorY);
+        brush.stroke();
+        brush.fillStyle = muted;
+        const floorLabel = `FLOOR ${price(scale / supply ** 2)}`;
+        // Keep it clear of the supply line when burns have pulled that in.
+        const floorRight = supply < COINS * 0.998 ? px(supply) - 10 : PLOT.left + plotWidth;
+        brush.fillText(floorLabel, floorRight - brush.measureText(floorLabel).width, floorY - 10);
+
+        // Where the supply ends, once burns have pulled it in.
+        if (supply < COINS * 0.998) {
+          brush.beginPath();
+          brush.moveTo(Math.round(px(supply)) + 0.5, PLOT.top);
+          brush.lineTo(Math.round(px(supply)) + 0.5, base);
+          brush.stroke();
+          brush.fillText('SUPPLY', px(supply) - brush.measureText('SUPPLY').width - 8, PLOT.top + 10);
+        }
+        brush.setLineDash([]);
+
+        // The curve: faint for the old one and for the road ahead, solid up to the coins held.
+        brush.save();
+        brush.beginPath();
+        brush.rect(PLOT.left, PLOT.top - 6, plotWidth, base - PLOT.top + 6);
+        brush.clip();
+        const trace = (k, total, until) => {
+          brush.beginPath();
+          for (let step = 0; step <= 320; step += 1) {
+            const coinsOut = (Math.min(until, total * 0.999) * step) / 320;
+            const y = py(k / (total - coinsOut) ** 2);
+            if (step === 0) brush.moveTo(px(coinsOut), y);
+            else brush.lineTo(px(coinsOut), y);
+            if (y < PLOT.top - 40) break;
+          }
+          brush.stroke();
+        };
+        brush.lineJoin = 'round';
+        if (ghost && ghost.fade > 0.02) {
+          brush.strokeStyle = `rgb(${INK.surf.join(' ')})`;
+          brush.globalAlpha = ghost.fade * 0.7;
+          brush.lineWidth = 1.5;
+          brush.setLineDash([4, 6]);
+          trace(ghost.scale, ghost.supply, ghost.supply);
+          brush.setLineDash([]);
+        }
+        brush.strokeStyle = foam;
+        brush.globalAlpha = 0.35;
+        brush.lineWidth = 2;
+        trace(scale, supply, supply);
+        brush.globalAlpha = 1;
+        brush.lineWidth = 3;
+        trace(scale, supply, held);
+        brush.restore();
+
+        // The price: the point where the market sits on its curve.
+        const dotX = px(held);
+        const dotY = py(priceAt(held));
+        brush.fillStyle = token('ground');
+        brush.beginPath();
+        brush.arc(dotX, dotY, 9, 0, Math.PI * 2);
+        brush.fill();
+        brush.fillStyle = foam;
+        brush.beginPath();
+        brush.arc(dotX, dotY, 5.5, 0, Math.PI * 2);
+        brush.fill();
+        const label = `PRICE ${price(priceAt(held))}`;
+        const room = brush.measureText(label).width;
+        const labelX = dotX - room - 16 > PLOT.left + 4 ? dotX - room - 16 : dotX + 16;
+        brush.fillText(label, labelX, Math.max(PLOT.top + 8, dotY - 14));
+      }
+
+      let last = performance.now();
+      function frame(time) {
+        requestAnimationFrame(frame);
+        const step = Math.min(0.034, (time - last) / 1000);
+        last = time;
+        clock += step;
+        for (const key of Object.keys(shown)) {
+          // A loose spring: the shape overshoots and settles, which is the slosh.
+          speed[key] += (72 * (target[key] - shown[key]) - 7.5 * speed[key]) * step;
+          shown[key] += speed[key] * step;
+        }
+        stir *= Math.exp(-step * 1.5);
+        if (stir < 0.02) stir = 0;
+        if (lift < 1) lift = Math.min(1, lift + step / 1.1);
+        for (const key of Object.keys(lineShown)) {
+          lineSpeed[key] += (60 * (line[key] - lineShown[key]) - 9 * lineSpeed[key]) * step;
+          lineShown[key] += lineSpeed[key] * step;
+        }
+        if (ghost) ghost.fade *= Math.exp(-step * 0.55);
+        // Keep the price comfortably inside the chart: zoom out as it climbs, back in as it falls.
+        const wanted = Math.max(0.0012, read(market).price * 1.9);
+        ceiling += (wanted - ceiling) * Math.min(1, step * 2.5);
+        draw();
+        drawChart();
+      }
+
+      /* -------------------------------------------------------------- play */
+
+      const SCRIPT = ['buy', 'buy', 'buy', 'heal', 'buy', 'sell', 'burn', 'borrow', 'buy', 'sell', 'repay', 'heal', 'sell', 'sell', 'reset'];
+      let playing = !still;
+      let step = 0;
+      let timer = null;
+      const playButton = document.getElementById('play');
+      function schedule() {
+        clearTimeout(timer);
+        playButton.textContent = playing ? 'Pause' : 'Play';
+        if (!playing) return;
+        timer = setTimeout(() => {
+          act(SCRIPT[step % SCRIPT.length]);
+          step += 1;
+          schedule();
+        }, 2600);
+      }
+      playButton.addEventListener('click', () => {
+        playing = !playing;
+        schedule();
+      });
+      for (const button of document.querySelectorAll('[data-do]')) {
+        button.addEventListener('click', () => {
+          playing = false;
+          schedule();
+          act(button.dataset.do);
+        });
+      }
+
+      new ResizeObserver(() => {
+        resize();
+        resizeChart();
+        draw();
+        drawChart();
+      }).observe(canvas);
+      resize();
+      resizeChart();
+      act('reset');
+      lift = 1;
+      Object.assign(shown, target);
+      document.fonts.ready.then(() => {
+        if (still) {
+          draw();
+          drawChart();
+        }
+        else requestAnimationFrame(frame);
+        schedule();
+      });
+    </script>
+  </body>
+</html>

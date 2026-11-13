@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wavefront brand guidelines</title>
+    <link rel="icon" href="icons/favicon.svg" />
+    <link rel="stylesheet" href="tokens/tokens.css" />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--wf-ground);
+        color: var(--wf-ink);
+        font: 400 16px/1.55 var(--wf-font-body);
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 1040px; margin: 0 auto; padding: 0 24px 96px; }
+      header { padding: 72px 0 40px; }
+      header img { height: 56px; display: block; }
+      header p { max-width: 56ch; margin: 28px 0 0; font-size: 19px; color: var(--wf-ink-2); }
+      section { padding: 56px 0 0; }
+      h2 {
+        margin: 0 0 8px;
+        font: 500 34px/1.1 var(--wf-font-display);
+        letter-spacing: var(--wf-tracking-display);
+      }
+      h3 { margin: 0 0 6px; font: 500 16px/1.3 var(--wf-font-body); }
+      p { margin: 0 0 12px; max-width: 68ch; }
+      .lead { color: var(--wf-muted); margin-bottom: 28px; }
+      .label {
+        font: 500 12px/1.4 var(--wf-font-mono);
+        letter-spacing: var(--wf-tracking-label);
+        text-transform: uppercase;
+        color: var(--wf-muted);
+      }
+      code { font: 400 13px/1.4 var(--wf-font-mono); color: var(--wf-ink-2); }
+      .rule { display: block; width: 100%; height: 12px; object-fit: cover; object-position: left; margin-top: 56px; }
+      .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+      .card {
+        border: 1px solid var(--wf-hairline);
+        border-radius: var(--wf-radius);
+        background: var(--wf-surface);
+        padding: 20px;
+        min-width: 0;
+      }
+      .card p { color: var(--wf-muted); font-size: 14px; margin: 0; }
+      .stage {
+        display: flex; align-items: center; justify-content: center;
+        min-height: 168px; padding: 28px; margin-bottom: 16px;
+        border-radius: 10px; background: var(--wf-ground); border: 1px solid var(--wf-hairline);
+      }
+      .stage.light { background: #ffffff; border-color: transparent; }
+      .stage.tide { background: var(--wf-tide); border-color: transparent; }
+      .stage img { max-width: 100%; }
+      .shot { padding: 14px; border-radius: 10px; border: 1px solid var(--wf-hairline); background: var(--wf-ground); margin-bottom: 16px; }
+      .shot svg { display: block; width: 100%; height: auto; }
+      .hero { display: grid; gap: 32px; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); align-items: center; }
+      .hero img { width: 100%; display: block; }
+      .sizes { display: flex; gap: 28px; align-items: flex-end; flex-wrap: wrap; }
+      .sizes figure { margin: 0; text-align: center; }
+      .sizes figcaption { margin-top: 10px; }
+      .swatches { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+      .swatch { border-radius: 10px; overflow: hidden; border: 1px solid var(--wf-hairline); background: var(--wf-surface); }
+      .swatch i { display: block; height: 76px; }
+      .swatch div { padding: 10px 12px 12px; }
+      .swatch b { display: block; font-weight: 500; font-size: 14px; }
+      .swatch span { display: block; font-size: 13px; color: var(--wf-muted); }
+      .specimen { font: 500 56px/1.05 var(--wf-font-display); letter-spacing: var(--wf-tracking-display); margin: 0 0 8px; }
+      .figure { font: 500 30px/1.2 var(--wf-font-mono); margin: 0 0 8px; }
+      .meter { display: block; width: 100%; height: auto; }
+      .swell { display: block; width: 100%; border-radius: var(--wf-radius); border: 1px solid var(--wf-hairline); }
+      ul { margin: 0; padding-left: 20px; max-width: 68ch; }
+      li { margin-bottom: 8px; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th, td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--wf-hairline); vertical-align: top; }
+      th { font: 500 12px/1.4 var(--wf-font-mono); letter-spacing: var(--wf-tracking-label); text-transform: uppercase; color: var(--wf-muted); }
+      .scroll { overflow-x: auto; }
+      @media (max-width: 720px) {
+        header { padding-top: 48px; }
+        header img { height: 44px; }
+        .hero { grid-template-columns: minmax(0, 1fr); }
+        .hero img { max-width: 240px; }
+        .specimen { font-size: 40px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="logo/wavefront-lockup-on-dark.svg" alt="Wavefront" />
+        <p>
+          How Wavefront looks. It is drawn in the block language it shares with GlazeCorp: rounded blocks, a wave made
+          of them, and a dark ground lit in afterglow colours: blue, violet, pink and amber.
+        </p>
+      </header>
+
+      <section id="mark">
+        <h2>The mark</h2>
+        <p class="lead">The Tide: a coin made of blocks, filled to a wave line.</p>
+        <div class="hero">
+          <img src="logo/wavefront-mark.svg" alt="The Tide mark" />
+          <div>
+            <h3>What it shows</h3>
+            <p>
+              The disc is a coin. The coloured blocks are what backs it, shading from blue at the bottom through violet
+              to pink. The amber line on top is the wave: the edge where that backing is rising. The empty blocks above
+              are room still to fill.
+            </p>
+            <h3>How it is built</h3>
+            <p>
+              A 9 by 9 grid, corners dropped to make a disc. Every block leaves a gap of 14% of its cell and rounds its
+              corners by 22% of its own width, the same numbers as every other block in the system.
+            </p>
+            <p>The wave line, the fill level and the order of the colours are fixed in the logo. Don't redraw them.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="sizes">
+        <h2>Three sizes</h2>
+        <p class="lead">Each smaller size is redrawn on a coarser grid, so the blocks never get too fine to read.</p>
+        <div class="card">
+          <div class="sizes">
+            <figure>
+              <img src="logo/wavefront-mark.svg" width="96" height="96" alt="" />
+              <figcaption class="label">Full · 48px and up</figcaption>
+            </figure>
+            <figure>
+              <img src="logo/wavefront-mark-small.svg" width="40" height="40" alt="" />
+              <figcaption class="label">Small · 24 to 47px</figcaption>
+            </figure>
+            <figure>
+              <img src="logo/wavefront-mark-micro.svg" width="16" height="16" alt="" />
+              <figcaption class="label">Micro · 16 to 23px</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section id="logo">
+        <h2>Logo</h2>
+        <p class="lead">
+          The mark with the name in Funnel Display Medium. The gap is 28% of the mark's height and the type is 86% of
+          it.
+        </p>
+        <div class="grid">
+          <div class="card">
+            <div class="stage"><img src="logo/wavefront-lockup-on-dark.svg" height="48" alt="" /></div>
+            <h3>On dark</h3>
+            <p>The default. The mark sits straight on the ground with no disc.</p>
+          </div>
+          <div class="card">
+            <div class="stage light"><img src="logo/wavefront-lockup-on-light.svg" height="48" alt="" /></div>
+            <h3>On light</h3>
+            <p>The mark keeps its dark disc, so its colours never change.</p>
+          </div>
+          <div class="card">
+            <div class="stage"><img src="logo/wavefront-stacked-on-dark.svg" height="112" alt="" /></div>
+            <h3>Stacked</h3>
+            <p>For square spaces. Also comes for light grounds.</p>
+          </div>
+          <div class="card">
+            <div class="stage light"><img src="logo/wavefront-mark-mono-ink.svg" height="88" alt="" /></div>
+            <h3>One colour, ink</h3>
+            <p>Where only one ink is available. The wave line is solid, the water a tint.</p>
+          </div>
+          <div class="card">
+            <div class="stage tide"><img src="logo/wavefront-mark-mono-white.svg" height="88" alt="" /></div>
+            <h3>One colour, white</h3>
+            <p>On a colour or a photograph.</p>
+          </div>
+          <div class="card">
+            <div class="stage"><img src="logo/wavefront-wordmark-ash.svg" height="34" alt="" /></div>
+            <h3>Wordmark</h3>
+            <p>On its own only where the mark is already nearby.</p>
+          </div>
+        </div>
+        <p style="margin-top: 24px">
+          Keep clear space of a quarter of the mark's height on every side. The smallest lockup is 20px tall; below
+          that, use the mark alone.
+        </p>
+      </section>
+
+      <img class="rule" src="pattern/block-rule.svg" alt="" />
+
+      <section id="colour">
+        <h2>Colour</h2>
+        <p class="lead">A near-black ground, ash type and the Afterglow ramp: five colours, sea floor to foam. Tide, the violet, is the accent.</p>
+        <div class="swatches" id="wave"></div>
+        <h3 style="margin-top: 32px">Ground and type</h3>
+        <div class="swatches" id="neutral"></div>
+        <h3 style="margin-top: 32px">Meaning</h3>
+        <p class="lead" style="margin-bottom: 16px">
+          Only for what they say: price up, price down, caution. Green is never a brand colour here.
+        </p>
+        <div class="swatches" id="meaning"></div>
+        <p style="margin-top: 24px">
+          On the dark ground Tide reads at <span id="c-tide"></span>:1 and Foam at <span id="c-foam"></span>:1, so both
+          work for text. On white, Tide is only <span id="c-tide-light"></span>:1; use the darker violet
+          <code id="c-light-hex"></code> there (<span id="c-accent-light"></span>:1). Text on a Tide button is the
+          ground colour (<span id="c-on"></span>:1). The ramp always runs in the same order, Trench up to Foam; don't
+          shuffle it.
+        </p>
+      </section>
+
+      <section id="type">
+        <h2>Type</h2>
+        <p class="lead">Three faces, all open-licensed and included in <code>fonts/</code>.</p>
+        <div class="grid">
+          <div class="card">
+            <p class="label" style="margin-bottom: 14px">Funnel Display · Medium · -0.035em</p>
+            <div class="specimen">Rising floor</div>
+            <p>The wordmark and headlines. Never for body text.</p>
+          </div>
+          <div class="card">
+            <p class="label" style="margin-bottom: 14px">Geist · Regular and Medium</p>
+            <div style="font-size: 19px; color: var(--wf-ink); margin-bottom: 8px">
+              One call launches a coin with its own market, and every trade lifts the floor.
+            </div>
+            <p>Everything you read: body, buttons, tables.</p>
+          </div>
+          <div class="card">
+            <p class="label" style="margin-bottom: 14px">Geist Mono · Medium</p>
+            <div class="figure">$0.00012204</div>
+            <p>Figures, addresses, and small uppercase labels at 0.08em tracking.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="blocks">
+        <h2>Blocks</h2>
+        <p class="lead">
+          Anything beyond the logo is built from the same block: patterns, dividers, meters. A shape made of blocks may
+          come loose at its leading edge, and nowhere else.
+        </p>
+        <img class="swell" src="pattern/block-swell.svg" alt="The block swell pattern" />
+        <div class="grid" style="margin-top: 16px">
+          <div class="card">
+            <h3>Swell</h3>
+            <p>The background pattern. The wave line is always Foam and there is always water under it.</p>
+          </div>
+          <div class="card">
+            <svg class="meter" id="meter" viewBox="0 0 24 1" role="img" aria-label="A block meter, 15 of 24 filled"></svg>
+            <h3 style="margin-top: 14px">Meter</h3>
+            <p>A share counted in whole blocks. The leading block is Foam.</p>
+          </div>
+          <div class="card">
+            <img src="pattern/block-rule.svg" alt="" style="display: block; width: 240px; max-width: 100%; height: 12px; object-fit: cover; object-position: right" />
+            <h3 style="margin-top: 14px">Rule</h3>
+            <p>Between major sections of a page. Never inside a form.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="layers">
+        <h2>The front</h2>
+        <p class="lead">
+          Wavefront draws in two ways, and its signature is the place where they meet. Blocks are for things you
+          count: the logo, coins, icons, meters. Fluid, in smooth layers, is for things that flow: a price curve, a
+          background. At a front, fluid sets into blocks and blocks melt back into fluid. That is what a trade does at
+          the price, with quote on one side and coins on the other.
+        </p>
+        <img class="swell" src="pattern/front.svg" alt="Fluid on the left setting into blocks on the right" />
+        <div class="grid" style="margin-top: 16px">
+          <div class="card">
+            <h3>How fluid is built</h3>
+            <p>A line in Foam, with water under it in section: Surf, Tide, Deep, then Trench. Each band follows the line and is about twice as thick as the one above it. Flat colour only: no gradients, no glow.</p>
+          </div>
+          <div class="card">
+            <h3>How they meet</h3>
+            <p>The fluid's edge is bitten into block-shaped notches, more of them toward the front. Past the front, loose blocks gather into solid rows. Nothing fades: every part is fluid, a block, or empty.</p>
+          </div>
+          <div class="card">
+            <h3>The rule</h3>
+            <p>Fluid and blocks meet side by side, at a front. Never draw a line or a fluid shape on top of blocks. The logo is always blocks: it is the coin, and coins are the side that has set.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="mechanics">
+        <h2>Mechanics</h2>
+        <p class="lead">
+          Pictures of the protocol are drawn to scale from its own formulas, never sketched. Price runs left to right,
+          depth runs up, and one block is a fixed amount of quote, so each action is a change of shape you can count.
+          Each card shows before on top and after underneath.
+        </p>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr))">
+          <div class="card"><div class="shot" data-still="buy" role="img" aria-label="A buy pushes the front right"></div><h3>Buy</h3><p>Quote fills in behind the front as it moves up the price.</p></div>
+          <div class="card"><div class="shot" data-still="sell" role="img" aria-label="A sell pulls the front back, never past the floor"></div><h3>Sell</h3><p>The front falls back. The floor is its left wall.</p></div>
+          <div class="card"><div class="shot" data-still="heal" role="img" aria-label="A heal deepens the pool and lifts the floor"></div><h3>Heal</h3><p>More quote, nothing taken out: taller, and the wall moves in.</p></div>
+          <div class="card"><div class="shot" data-still="burn" role="img" aria-label="A burn thins the pool and lifts both prices"></div><h3>Burn</h3><p>Fewer coins: thinner, with both the floor and the price further right.</p></div>
+          <div class="card"><div class="shot" data-still="borrow" role="img" aria-label="A loan borrows the quote at the floor"></div><h3>Borrow</h3><p>A loan takes the quote sitting at the floor, against locked coins. The floor price stays put.</p></div>
+          <div class="card">
+            <h3>In motion</h3>
+            <p>
+              <code>graphics/liquidity.html</code> is the same picture animated: it plays through trades, heals, burns
+              and loans, and has buttons to try each one. When liquidity moves it sloshes and settles; when the pool is
+              rebuilt, the blocks lift out and drop back in.
+            </p>
+            <p style="margin-top: 10px">
+              <code>graphics/floor.html</code> is the floor through time: a price line over a floor that climbs in
+              steps and never comes back down.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="elements">
+        <h2>Site elements</h2>
+        <p class="lead">
+          The pieces a site is built from live in <code>elements/</code>, with a gallery of all of them in
+          <code>elements.html</code>: a living hero of block water, glyphs that give every coin and wallet a picture,
+          thirteen block icons, price lines and meters in blocks, buttons, chips and a loader.
+        </p>
+      </section>
+
+      <section id="donts">
+        <h2>Don't</h2>
+        <ul>
+          <li>Recolour the mark or reorder its colours. It is the Afterglow ramp on the dark ground, or one flat colour.</li>
+          <li>Use the full mark below 48px. Switch to Small, then Micro.</li>
+          <li>Put the disc-less mark on a light ground, or on anything lighter than the surface colour.</li>
+          <li>Change the wave line, the fill level or the block spacing.</li>
+          <li>Stretch, rotate, outline or add shadows and glows.</li>
+          <li>Draw a line or a fluid shape over blocks. The two meet side by side at a front, or not at all.</li>
+          <li>Set the name in another face, or type it as "WaveFront" or "Wave Front". It is one word: Wavefront.</li>
+        </ul>
+      </section>
+
+      <section id="files">
+        <h2>Files</h2>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Need</th><th>Use</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Logo on a dark page</td><td><code>logo/wavefront-lockup-on-dark.svg</code></td></tr>
+              <tr><td>Logo on a light page</td><td><code>logo/wavefront-lockup-on-light.svg</code></td></tr>
+              <tr><td>Token icon for wallets, scanners and token lists</td><td><code>icons/token-256.png</code>, <code>token-512.png</code>, <code>token-1024.png</code></td></tr>
+              <tr><td>Favicon</td><td><code>icons/favicon.svg</code>, <code>favicon-16.png</code>, <code>favicon-32.png</code>, <code>favicon-48.png</code></td></tr>
+              <tr><td>App and home-screen icons</td><td><code>icons/apple-touch-icon.png</code>, <code>icon-192.png</code>, <code>icon-512.png</code>, <code>icon-maskable-512.png</code></td></tr>
+              <tr><td>Social profile picture</td><td><code>social/avatar-400.png</code></td></tr>
+              <tr><td>Link preview image</td><td><code>social/og-1200x630.png</code></td></tr>
+              <tr><td>X header</td><td><code>social/x-banner-1500x500.png</code></td></tr>
+              <tr><td>Background patterns, in blocks and in layers</td><td><code>pattern/front.svg</code>, <code>pattern/block-swell.svg</code>, <code>pattern/layer-swell.svg</code>, <code>pattern/block-rule.svg</code></td></tr>
+              <tr><td>Glyphs, icons, meters and price lines for the site</td><td><code>elements/wavefront-elements.mjs</code>, <code>elements/wavefront.css</code>, <code>elements/icons/</code>; see <code>elements.html</code></td></tr>
+              <tr><td>The floor rising under the price, live and as a still</td><td><code>graphics/floor.html</code>, <code>graphics/floor.svg</code>, <code>graphics/png/floor-1200x675.png</code></td></tr>
+              <tr><td>The protocol's mechanics, animated</td><td><code>graphics/liquidity.html</code></td></tr>
+              <tr><td>A still of one mechanic</td><td><code>graphics/buy.svg</code>, <code>sell.svg</code>, <code>heal.svg</code>, <code>burn.svg</code>, <code>borrow.svg</code>, and PNGs in <code>graphics/png/</code></td></tr>
+              <tr><td>Colours, fonts and block geometry in code</td><td><code>tokens/tokens.css</code>, <code>tokens/tokens.json</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="margin-top: 24px; color: var(--wf-muted)">
+          Every SVG and PNG here is generated by <code>build.mjs</code>. Change it there and run
+          <code>yarn brand</code>.
+        </p>
+      </section>
+    </main>
+
+    <script>
+      const css = getComputedStyle(document.documentElement);
+      const token = (name) => css.getPropertyValue(`--wf-${name}`).trim();
+
+      const swatch = (name, label, use) =>
+        `<div class="swatch"><i style="background: var(--wf-${name})"></i><div><b>${label}</b><span>${token(name)}</span><span>${use}</span></div></div>`;
+      const fill = (id, rows) => {
+        document.getElementById(id).innerHTML = rows.map((row) => swatch(...row)).join('');
+      };
+      fill('wave', [
+        ['trench', 'Trench', 'Deepest water'],
+        ['deep', 'Deep', 'Deep water'],
+        ['tide', 'Tide', 'The accent'],
+        ['surf', 'Surf', 'Just under the wave line'],
+        ['foam', 'Foam', 'The wave line'],
+      ]);
+      fill('neutral', [
+        ['ground', 'Ground', 'Page'],
+        ['surface', 'Surface', 'Cards'],
+        ['surface-2', 'Surface 2', 'Fields, empty blocks'],
+        ['muted', 'Muted', 'Supporting text'],
+        ['ink', 'Ash', 'Text'],
+      ]);
+      fill('meaning', [
+        ['up', 'Up', 'Price up'],
+        ['down', 'Down', 'Price down'],
+        ['warn', 'Warn', 'Caution'],
+      ]);
+
+      // WCAG contrast, worked out from the tokens so the numbers above can't drift from the colours.
+      const luminance = (hex) => {
+        const channel = (index) => {
+          const value = parseInt(hex.slice(1 + index * 2, 3 + index * 2), 16) / 255;
+          return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+        };
+        return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
+      };
+      const contrast = (a, b) => {
+        const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+        return ((hi + 0.05) / (lo + 0.05)).toFixed(1);
+      };
+      const put = (id, a, b) => {
+        document.getElementById(id).textContent = contrast(a, b);
+      };
+      put('c-tide', token('tide'), token('ground'));
+      put('c-foam', token('foam'), token('ground'));
+      put('c-tide-light', token('tide'), '#ffffff');
+      put('c-accent-light', token('accent-on-light'), '#ffffff');
+      document.getElementById('c-light-hex').textContent = token('accent-on-light');
+      put('c-on', token('on-accent'), token('tide'));
+
+      // The meter, drawn with the token geometry.
+      const gap = Number(token('block-gap'));
+      const round = Number(token('block-round'));
+      const size = 1 - gap;
+      const filled = 15;
+      document.getElementById('meter').innerHTML = Array.from({ length: 24 }, (_, x) => {
+        const colour = x === filled - 1 ? token('foam') : x < filled ? token('tide') : token('surface-2');
+        return `<rect x="${x + gap / 2}" y="${gap / 2}" width="${size}" height="${size}" rx="${size * round}" fill="${colour}"/>`;
+      }).join('');
+    </script>
+    <script type="module">
+      /*__LIQUIDITY_MODULE__*/
+
+      /*__STILL_SHAPES__*/
+
+      /*__ELEMENTS_NAMESPACE__*/
+
+      // The mechanics pictures: the same blocks as the stills in graphics/, drawn here to keep the page small.
+      const style = getComputedStyle(document.documentElement);
+      const colour = (name) => style.getPropertyValue(`--wf-${name}`).trim();
+      const gap = Number(colour('block-gap'));
+      const size = 1 - gap;
+      const corner = size * Number(colour('block-round'));
+      const square = (x, y, rest) =>
+        `<rect x="${x + gap / 2}" y="${y + gap / 2}" width="${size}" height="${size}" rx="${corner}" ${rest}/>`;
+      let clips = 0;
+      const path = ({ fill, points }) => `<path d="M${points.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join('L')}Z" fill="${fill}"/>`;
+      const cell = ({ x, y, w, h, r }, rest = '') => `<rect x="${x.toFixed(3)}" y="${y.toFixed(3)}" width="${w.toFixed(3)}" height="${h.toFixed(3)}" rx="${r.toFixed(3)}" ${rest}/>`;
+      const panel = (form, rows) => {
+        // Outlines for the virtual quote and anything lent out; then the pool, fluid quote setting into block coins.
+        const outlines = blocks(form, STILL_GRID)
+          .map((block) => {
+            const y = rows - 1 - block.row;
+            if (block.kind === 'virtual') return square(block.col, y, `fill="none" stroke="${colour('ink')}" stroke-opacity="0.22" stroke-width="0.06"`);
+            if (block.kind === 'lent') return square(block.col, y, `fill="none" stroke="${colour('surf')}" stroke-width="0.06" stroke-dasharray="0.2 0.14"`);
+            return '';
+          })
+          .join('');
+        const shapes = WF.front({ width: STILL_GRID.cols, height: rows, unit: 1, at: form.priceCol, spread: 6, surface: () => form.rows });
+        const id = `clip-${(clips += 1)}`;
+        const start = Math.round(form.lentCol);
+        const thin = (col) => (col + 0.5 > form.priceCol ? Math.max(0.16, Math.min(1, (form.priceCol / (col + 0.5)) ** 2)) : 1);
+        return (
+          outlines +
+          `<clipPath id="${id}"><rect x="${start}" y="0" width="${STILL_GRID.cols - start}" height="${rows}"/></clipPath>` +
+          `<mask id="${id}-holes"><rect width="${STILL_GRID.cols}" height="${rows}" fill="#fff"/><g fill="#000">${shapes.holes.map((hole) => cell(hole)).join('')}</g></mask>` +
+          `<g clip-path="url(#${id})"><g mask="url(#${id}-holes)">${shapes.polygons.map(path).join('')}</g>` +
+          shapes.rects.map((shape) => cell(shape, `fill="${shape.fill}" opacity="${(shape.alpha * thin(shape.col)).toFixed(2)}"`)).join('') +
+          `</g>`
+        );
+      };
+      for (const frame of document.querySelectorAll('[data-still]')) {
+        const { before, after } = STILL_SHAPES[frame.dataset.still];
+        const rows = Math.max(before.rows, after.rows);
+        const between = 1.5;
+        frame.innerHTML =
+          `<svg viewBox="0 0 ${STILL_GRID.cols} ${rows * 2 + between}" aria-hidden="true">${panel(before, rows)}` +
+          `<g transform="translate(0 ${rows + between})">${panel(after, rows)}</g></svg>`;
+      }
+    </script>
+  </body>
+</html>
