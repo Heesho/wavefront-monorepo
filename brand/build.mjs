@@ -821,7 +821,7 @@ ${parts.map((piece) => piece.css).join('\n')}
     <hr style="border: 0; border-top: 1px solid var(--wf-hairline); margin: 0" />
     <div class="kit-social" id="kit-social">
       <h2>Every graphic</h2>
-      <p>Everything in the kit, by file name. PNG versions of the icons, lockups, stills and social images sit beside these in the same folders.</p>
+      <p>Everything in the kit, by file name. PNG versions of the icons, lockups, stills and social images sit beside these in the same folders. All the files are in the <a href="https://github.com/Heesho/wavefront-monorepo/tree/main/brand" style="color: var(--wf-accent-text)">brand folder of the Wavefront repository</a>.</p>
       ${shelves}
     </div>
     <script>
